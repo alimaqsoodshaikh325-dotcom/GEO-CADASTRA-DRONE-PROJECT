@@ -6,6 +6,35 @@ The repository contains a React/Vite web application, a FastAPI service, ML and 
 
 > **Data integrity:** Results depend on the supplied imagery, model checkpoint, parcel layer, coordinate reference system (CRS), and pipeline output. The application should not be treated as a survey or legal cadastral authority without independent validation.
 
+## Smart India Hackathon (SIH) Project
+
+**GeoCadastra** is an AI-powered geospatial platform designed to transform drone and aerial imagery into GIS-ready building and cadastral insights.
+
+### Problem
+
+Conventional aerial-image and cadastral workflows often require separate tools for image analysis, building-footprint extraction, GIS processing, parcel association, and result review. This can make urban mapping workflows time-consuming and difficult to manage in one place.
+
+### Solution
+
+GeoCadastra combines **Computer Vision, GeoAI, and GIS processing** in a unified web platform. Users can upload aerial imagery, select a building-segmentation model, generate building footprints, associate detected buildings with available cadastral parcels, calculate spatial measurements and statistics, and review the generated outputs.
+
+### AI + GIS Approach
+
+- **U-Net++** for semantic building segmentation
+- **YOLO11-Seg** for building segmentation
+- **Mask R-CNN** for building instance segmentation
+- **GIS processing** for footprints, measurements, CRS-aware geographic outputs, and parcel/building relationships
+- **GeoAI Assistant** using Google Gemini when configured
+- **PostgreSQL/PostGIS** for supported spatial and job metadata
+
+### Key Innovation
+
+GeoCadastra brings the **ML inference → GIS processing → cadastral association → visualization and review** workflow into a single application, while preserving model-specific outputs and supporting multiple building-segmentation approaches.
+
+### SIH Relevance
+
+The platform is intended to support **AI-assisted urban mapping, building-footprint extraction, cadastral analysis, and geospatial decision-support workflows** using drone and aerial imagery.
+
 ## Contents
 
 - [Capabilities](#capabilities)
