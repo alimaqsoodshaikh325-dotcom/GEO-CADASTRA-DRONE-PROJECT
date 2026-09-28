@@ -22,6 +22,20 @@ The repository contains a React/Vite web application, a FastAPI service, ML and 
 - [Render deployment planning](#render-deployment-planning)
 - [Limitations and operational notes](#limitations-and-operational-notes)
 
+  ## Mask R-CNN production checkpoint
+
+The production Mask R-CNN checkpoint is hosted separately because it exceeds GitHub’s standard per-file size limit.
+
+- **Hugging Face repository:** [GeoCadastra Mask R-CNN](https://huggingface.co/shaikhrahella/geocadastra-maskrcnn)
+- **Checkpoint:** [`best.pth`](https://huggingface.co/shaikhrahella/geocadastra-maskrcnn/resolve/main/best.pth)
+- **Model:** Mask R-CNN
+- **Purpose:** Building instance segmentation
+
+Download `best.pth` and place it at:
+
+```text
+building_segmentation/runs/maskrcnn/building_instances_fixed/best.pth
+
 ## Capabilities
 
 - Authenticated workspace pages for dashboard, analysis, model and dataset browsing, map exploration, results, reports, review, history, settings, and account/profile.
