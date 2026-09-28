@@ -1,0 +1,6 @@
+path: C:/Users/PC/Downloads/archive (1)/building_segmentation/dataset_yolo
+train: images/train
+val: images/val
+test: images/test
+names:
+  0: building

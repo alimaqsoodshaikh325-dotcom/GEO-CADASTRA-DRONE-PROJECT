@@ -1,0 +1,50 @@
+FINAL VALIDATION REPORT
+=======================
+
+A. ML benchmark results
+----------------------
+- Tile 8 test split contains 9 images and 9 corresponding ground-truth masks.
+- Image dimensions: [(2149, 1479), (2149, 1480)]
+- Ground-truth mask dimensions: [(2149, 1479), (2149, 1480)]
+- Building class definition: RGB (60, 16, 152), stored as binary building mask with background 0 and building 255.
+- Test split: Tile 8 is geographically held out according to the split definitions in the U-Net++ dataset preparation workflow.
+
+Benchmark summary (preserved from the existing benchmark artifacts):
+- YOLO11-Seg: IoU 0.2041, Dice 0.3251, Precision 0.2042, Recall 0.9992, TP 5,822,152, FP 22,647,407, FN 4,724.
+- U-Net++: IoU 0.4804, Dice 0.6409, Precision 0.5362, Recall 0.8182, TP 4,849,374, FP 3,582,623, FN 977,502.
+- Mask R-CNN: IoU 0.2582, Dice 0.4062, Precision 0.3789, Recall 0.5330, TP 2,711,094, FP 4,536,619, FN 3,115,782.
+- Predicted building count: YOLO 572, U-Net++ 340, Mask R-CNN 1307.
+- Inference latency: YOLO 0.935 s/image, U-Net++ 1.052 s/image, Mask R-CNN 15.910 s/image.
+
+B. GIS pipeline validation
+--------------------------
+- The GIS pipeline was validated with the real georeferenced raster and parcel layer used in the project.
+- For the AI4Boundaries raster, the final GIS consensus result is an intentionally empty output because the model does not generate meaningful building candidates on that domain.
+- No georeferenced Tile 8 test raster was identified in the test split; therefore the GIS demonstration is held in pixel space only.
+- Pixel-space demonstration created at final_validation/pixel_space_demo.geojson from the verified U-Net++ best checkpoint on one Tile 8 image.
+
+C. Spatial consensus implementation
+-----------------------------------
+- The spatial consensus / quality decision layer is implemented and validated.
+- Empty-result safety tests pass and the layer does not invent buildings when the model yields no candidates.
+- This is a conservative prototype layer suitable for audit and reporting, not legal cadastral adjudication.
+
+D. AI4Boundaries domain limitation
+----------------------------------
+- The real AI4Boundaries raster remains outside the effective domain of the verified U-Net++ checkpoint.
+- The model does not produce reliable building evidence there, so the GIS result remains intentionally empty rather than fabricated.
+- This is a domain mismatch limitation, not a GIS metadata or processing bug.
+
+E. Overall project limitations
+-----------------------------
+- The benchmark is limited to 9 held-out Tile 8 images and cannot support generalized claims of production-ready urban extraction.
+- The project is a prototype benchmark and GIS-ready workflow, not cadastral-grade or legal-grade mapping.
+- Real-world validation, field inspection, and GIS verification remain required before any cadastral-ready deployment.
+
+Status summary:
+ML_STATUS: PARTIAL
+GIS_STATUS: PARTIAL
+SPATIAL_CONSENSUS_STATUS: PASS
+END_TO_END_STATUS: PARTIAL
+
+This is a benchmark-grade prototype package for the verified Tile 8 split, not a production deployment claim.

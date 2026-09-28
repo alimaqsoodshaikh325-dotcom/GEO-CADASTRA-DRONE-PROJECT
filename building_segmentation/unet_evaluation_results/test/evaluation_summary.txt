@@ -1,0 +1,13 @@
+U-Net++ Evaluation Report - TEST SPLIT
+==================================================
+Images evaluated: 9
+Mean IoU / Jaccard: 0.4804
+Mean Dice Score: 0.6409
+Mean Precision: 0.5362
+Mean Recall: 0.8182
+Mean F1 Score: 0.6409
+--------------------------------------------------
+Good predictions (IoU >= 0.50): 4
+Missed buildings (Recall < 0.40): 0
+False positive detections: 0
+Fragmented or poor boundary (Precision < 0.40): 2

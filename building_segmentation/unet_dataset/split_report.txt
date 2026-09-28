@@ -1,0 +1,18 @@
+Tile-Aware Dataset Split Report for U-Net++
+=============================================
+Target: ~70% Train, ~20% Val, ~10% Test (at Tile level)
+
+Training Tiles: 5 (Tile 1, Tile 2, Tile 3, Tile 4, Tile 5)
+Training Images: 45 (62.5%)
+Training Building Pixel Ratio: 14.06%
+
+Validation Tiles: 2 (Tile 6, Tile 7)
+Validation Images: 18 (25.0%)
+Validation Building Pixel Ratio: 7.72%
+
+Testing Tiles: 1 (Tile 8)
+Testing Images: 9 (12.5%)
+Testing Building Pixel Ratio: 20.37%
+
+Total Images: 72
+Mask Format: Single-channel uint8 PNG (0 = background, 255 = building)

@@ -1,0 +1,13 @@
+U-Net++ Evaluation Report - VAL SPLIT
+==================================================
+Images evaluated: 18
+Mean IoU / Jaccard: 0.5776
+Mean Dice Score: 0.6512
+Mean Precision: 0.6143
+Mean Recall: 0.8378
+Mean F1 Score: 0.6512
+--------------------------------------------------
+Good predictions (IoU >= 0.50): 1
+Missed buildings (Recall < 0.40): 1
+False positive detections: 2
+Fragmented or poor boundary (Precision < 0.40): 1

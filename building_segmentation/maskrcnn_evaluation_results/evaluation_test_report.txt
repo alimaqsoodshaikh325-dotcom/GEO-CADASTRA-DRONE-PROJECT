@@ -1,0 +1,24 @@
+MASK R-CNN FIXED EVALUATION REPORT: TEST SPLIT
+======================================================================
+Model Checkpoint        : C:\Users\PC\Downloads\DRONE PROJECT\archive (1) (3)\archive (1)\building_segmentation\runs\maskrcnn\building_instances_fixed\best.pth
+Dataset Directory       : C:\Users\PC\Downloads\DRONE PROJECT\archive (1) (3)\archive (1)\building_segmentation\processed_maskrcnn_fixed
+Score Threshold         : 0.35
+IoU Match Threshold     : 0.5
+----------------------------------------------------------------------
+Total Ground Truth Buildings : 1358
+Total Predicted Buildings    : 1307
+True Positives (TP)          : 116
+False Positives (FP)         : 1191
+False Negatives (FN)         : 1242
+----------------------------------------------------------------------
+Instance Precision           : 0.0888
+Instance Recall              : 0.0854
+Instance F1 Score            : 0.0871
+Mean Pixel IoU (Jaccard)     : 0.2600
+Mean Pixel Dice              : 0.4085
+Mean Matched Mask IoU        : 0.6172
+Mean Matched Bounding-Box IoU: 0.6346
+----------------------------------------------------------------------
+All Predictions Confidence   : Mean=0.6917, Min=0.3510, Max=0.9825, Std=0.1427
+Matched TP Confidence        : Mean=0.7219, Min=0.3565, Max=0.9489, Std=0.1408
+======================================================================

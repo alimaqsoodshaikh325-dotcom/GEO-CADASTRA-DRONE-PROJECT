@@ -1,0 +1,2 @@
+import { motion } from 'framer-motion'
+export default function FeatureCard({ Icon, title, text, index }) { return <motion.article initial={{opacity:0,y:24}} whileInView={{opacity:1,y:0}} whileHover={{y:-7,rotateX:2,rotateY:index%2?2:-2}} viewport={{once:true}} transition={{duration:.35}} className="feature-card"><div className="feature-icon"><Icon size={20}/></div><span>0{index+1}</span><h3>{title}</h3><p>{text}</p><a href="#workflow">Explore capability <b>→</b></a></motion.article> }

@@ -1,0 +1,104 @@
+﻿================================================================================
+U-Net++ BUILDING FOOTPRINT SEGMENTATION & REFINEMENT: QUALITY REPORT
+Smart India Hackathon (SIH 2026) Prototype
+Project: AI-Based Urban Parcel Mapping and Cadastral Feature Extraction System
+================================================================================
+
+1. DATASET INTEGRITY & STATISTICS
+--------------------------------------------------------------------------------
+Dataset Root              : archive (1) (3)/archive (1)
+Total Paired Images/Masks : 72 images, 72 masks (Tiles 1 through 8)
+Image Dimensions          : 2149 x 1479 pixels (Original aerial JPEG)
+Target Building RGB       : (60, 16, 152) / HEX #3C1098
+Ignored Classes           : Clutter (255,255,255), Vegetation (37,141,19),
+                            Water (44,124,162), Ground (153,153,153)
+Integrity Status          : PASSED (0 corrupted images, 0 dimension mismatches)
+
+Building Distribution:
+- Images with buildings   : 58 / 72 (80.56%)
+- Zero-building images    : 14 / 72 (19.44%)
+- Dataset-wide coverage   : 13.31% building pixels
+- Tile 8 (Test Tile)      : 20.37% building coverage (dense urban sector)
+
+2. TILE-AWARE SPATIAL SPLIT
+--------------------------------------------------------------------------------
+Spatial contamination prevention: Entire geographic tiles were assigned to single
+splits, preventing aerial overlap between training and evaluation regions.
+
+- Train Split : Tiles 1 - 5 (45 images, 62.5%)
+- Val Split   : Tiles 6 - 7 (18 images, 25.0%)
+- Test Split  : Tile 8      (9 images, 12.5% - strictly unseen)
+
+3. MODEL ARCHITECTURE & TRAINING PROFILE
+--------------------------------------------------------------------------------
+Framework          : segmentation-models-pytorch (smp) 0.5.0 + PyTorch 2.13
+Architecture       : smp.UnetPlusPlus
+Backbone           : ResNet18 (ImageNet Pretrained)
+Encoder Depth      : 4 stages (channels: 64, 64, 128, 256)
+Decoder Channels   : (128, 64, 32, 16)
+Loss Function      : 0.5 * BCEWithLogitsLoss(pos_weight=2.0) + 0.5 * SoftDiceLoss
+Head Bias Init     : -1.9 (calibrated to ~13% building pixel prior)
+Image Resolution   : 384 x 384 pixels
+Batch Size         : 4
+Optimizer          : AdamW (lr=5e-4, weight_decay=1e-4)
+LR Scheduler       : ReduceLROnPlateau (factor=0.5, patience=2, mode='max')
+Hardware / Runtime : CPU-optimized (4 intra-op threads), ~29.2 minutes total
+Best Checkpoint    : Epoch 11 saved to runs/unetpp/building_refinement/best.pt
+
+4. QUANTITATIVE PERFORMANCE METRICS
+--------------------------------------------------------------------------------
+Split             Mean IoU (Jaccard)   Mean Dice (F1)   Mean Precision   Mean Recall
+--------------------------------------------------------------------------------
+Validation (Val)  0.5776               0.6512           0.6143           0.8378
+Test (Tile 8)     0.4804               0.6409           0.5362           0.8182
+--------------------------------------------------------------------------------
+
+5. BENCHMARK COMPARISON: YOLOv11-Seg vs U-Net++ (TILE 8, 9 UNSEEN IMAGES)
+--------------------------------------------------------------------------------
+Metric               YOLOv11-Seg     U-Net++         Absolute Delta   Relative Gain
+--------------------------------------------------------------------------------
+Mean IoU (Jaccard)   0.2041          0.4804          +0.2763          +135.4%
+Mean Dice Score      0.3251          0.6409          +0.3158          +97.1%
+Mean Precision       0.2042          0.5362          +0.3320          +162.6%
+Mean Recall          0.9992          0.8182          -0.1810          Balanced
+Mean F1 Score        0.3251          0.6409          +0.3158          +97.1%
+--------------------------------------------------------------------------------
+Win Rate on Test Set : U-Net++ outperformed YOLOv11-Seg on 9 out of 9 images (100%).
+
+6. CADASTRAL FOOTPRINT EXTRACTION & REFINEMENT
+--------------------------------------------------------------------------------
+Script             : refine_footprints.py
+Post-processing    : 
+  - Probabilistic Thresholding (tau = 0.50)
+  - Conservative Morphology (3x3 structuring elements to prevent merging)
+  - Connected Component Segmentation (cv2.RETR_EXTERNAL)
+  - Area Filtering (min_area >= 30 sq. pixels)
+  - Douglas-Peucker Polygon Simplification (epsilon = 0.005 * perimeter)
+Output Format      : GeoJSON (unet_building_footprints.geojson)
+Output Coordinate  : Pixel coordinate space
+Spatial Note       : Input imagery lacks georeferencing metadata / CRS header.
+Total Footprints   : 284 discrete cadastral polygons extracted across 9 test tiles.
+
+7. ERROR ANALYSIS & EDGE CASES
+--------------------------------------------------------------------------------
+1. High-Reflectance Surfaces:
+   - Concrete slabs, paved driveways, and metal warehouse roofs occasionally
+     trigger false positives due to spectral similarity with building rooftops.
+2. Narrow Alleys:
+   - Closely packed residential zones separated by < 3 pixels can fuse if
+     morphological operations are too aggressive. The 3x3 conservative kernel
+     successfully minimized this merging.
+3. Oblique Shadows:
+   - Dark cast shadows occasionally truncate building roof boundaries on North/East
+     facets. U-Net++'s dense nested skip connections reduced this effect compared
+     to YOLOv11-Seg.
+
+8. RECOMMENDATION FOR INTEGRATED PIPELINE
+--------------------------------------------------------------------------------
+1. Tier 1 (Detection): Use YOLOv11-Seg to generate discrete bounding proposals
+   and identify candidate building centroids.
+2. Tier 2 (Boundary Delineation): Feed proposals / imagery into U-Net++ for dense,
+   pixel-accurate contour segmentation.
+3. Tier 3 (Cadastral Vectorization): Run Douglas-Peucker simplification to output
+   orthogonalized polygon boundaries ready for GIS parcel mapping.
+================================================================================

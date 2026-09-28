@@ -1,0 +1,3 @@
+import { motion } from 'framer-motion'
+import { workflow } from '../data/platform'
+export default function Workflow(){return <section id="workflow" className="workflow section"><div className="section-kicker">The intelligence chain</div><h2>From pixels to <span>parcel-ready insight.</span></h2><div className="workflow-line">{workflow.map((step,i)=><motion.div initial={{opacity:0,y:16}} whileInView={{opacity:1,y:0}} viewport={{once:true}} transition={{delay:i*.08}} className="workflow-step" key={step}><b>{String(i+1).padStart(2,'0')}</b><span>{step}</span>{i<workflow.length-1&&<i/>}</motion.div>)}<div className="flow-dot"/></div></section>}

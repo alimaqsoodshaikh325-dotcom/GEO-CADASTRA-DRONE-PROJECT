@@ -1,0 +1,243 @@
+{
+  "split": "val",
+  "total_images": 18,
+  "mean_iou": 0.5776,
+  "mean_dice": 0.6512,
+  "mean_precision": 0.6143,
+  "mean_recall": 0.8378,
+  "mean_f1": 0.6512,
+  "threshold": 0.5,
+  "case_analysis": {
+    "good_predictions": [
+      "tile6_image_part_001.jpg"
+    ],
+    "missed_buildings": [
+      "tile7_image_part_006.jpg"
+    ],
+    "false_positives": [
+      "tile6_image_part_002.jpg",
+      "tile7_image_part_008.jpg"
+    ],
+    "fragmented_or_poor_boundary": [
+      "tile7_image_part_007.jpg"
+    ]
+  },
+  "per_image_metrics": [
+    {
+      "iou": 0.6280924746889541,
+      "dice": 0.7715685496397973,
+      "precision": 0.690663187541134,
+      "recall": 0.8739436734847914,
+      "f1": 0.7715680565028331,
+      "tp": 53467,
+      "fp": 23947,
+      "fn": 7712,
+      "tn": 634716,
+      "filename": "tile6_image_part_001.jpg"
+    },
+    {
+      "iou": 2.4999999375000016e-08,
+      "dice": 2.4999999375000016e-08,
+      "precision": 2.4999999375000016e-08,
+      "recall": 1.0,
+      "f1": 4.999994750005388e-08,
+      "tp": 0,
+      "fp": 40,
+      "fn": 0,
+      "tn": 719802,
+      "filename": "tile6_image_part_002.jpg"
+    },
+    {
+      "iou": 1.0,
+      "dice": 1.0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 0.99999950000025,
+      "tp": 0,
+      "fp": 0,
+      "fn": 0,
+      "tn": 719842,
+      "filename": "tile6_image_part_003.jpg"
+    },
+    {
+      "iou": 0.34373799905768543,
+      "dice": 0.5116146142997895,
+      "precision": 0.6797594094693108,
+      "recall": 0.41015818319537073,
+      "f1": 0.5116141448991088,
+      "tp": 22377,
+      "fp": 10542,
+      "fn": 32180,
+      "tn": 654743,
+      "filename": "tile6_image_part_004.jpg"
+    },
+    {
+      "iou": 1.0,
+      "dice": 1.0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 0.99999950000025,
+      "tp": 0,
+      "fp": 0,
+      "fn": 0,
+      "tn": 719842,
+      "filename": "tile6_image_part_005.jpg"
+    },
+    {
+      "iou": 1.0,
+      "dice": 1.0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 0.99999950000025,
+      "tp": 0,
+      "fp": 0,
+      "fn": 0,
+      "tn": 719842,
+      "filename": "tile6_image_part_006.jpg"
+    },
+    {
+      "iou": 1.0,
+      "dice": 1.0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 0.99999950000025,
+      "tp": 0,
+      "fp": 0,
+      "fn": 0,
+      "tn": 719842,
+      "filename": "tile6_image_part_007.jpg"
+    },
+    {
+      "iou": 1.0,
+      "dice": 1.0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 0.99999950000025,
+      "tp": 0,
+      "fp": 0,
+      "fn": 0,
+      "tn": 719842,
+      "filename": "tile6_image_part_008.jpg"
+    },
+    {
+      "iou": 1.0,
+      "dice": 1.0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 0.99999950000025,
+      "tp": 0,
+      "fp": 0,
+      "fn": 0,
+      "tn": 719842,
+      "filename": "tile6_image_part_009.jpg"
+    },
+    {
+      "iou": 0.4337826391195005,
+      "dice": 0.6050884245407505,
+      "precision": 0.464865478208329,
+      "recall": 0.8664444495530885,
+      "f1": 0.6050879700352473,
+      "tp": 565368,
+      "fp": 650829,
+      "fn": 87147,
+      "tn": 2441493,
+      "filename": "tile7_image_part_001.jpg"
+    },
+    {
+      "iou": 0.3922986058769249,
+      "dice": 0.5635265369381137,
+      "precision": 0.416865738673741,
+      "recall": 0.8693953031624875,
+      "f1": 0.5635260988265347,
+      "tp": 651597,
+      "fp": 911489,
+      "fn": 97886,
+      "tn": 2081804,
+      "filename": "tile7_image_part_002.jpg"
+    },
+    {
+      "iou": 0.38062600030873595,
+      "dice": 0.5513817648275057,
+      "precision": 0.42823023884608313,
+      "recall": 0.7739587683151157,
+      "f1": 0.5513813061800992,
+      "tp": 341031,
+      "fp": 455342,
+      "fn": 99601,
+      "tn": 2848863,
+      "filename": "tile7_image_part_003.jpg"
+    },
+    {
+      "iou": 0.45492748660104954,
+      "dice": 0.6253610448499861,
+      "precision": 0.5068999218847245,
+      "recall": 0.8160757001264624,
+      "f1": 0.6253605721577561,
+      "tp": 563253,
+      "fp": 547919,
+      "fn": 126944,
+      "tn": 2508538,
+      "filename": "tile7_image_part_004.jpg"
+    },
+    {
+      "iou": 0.4727325934401338,
+      "dice": 0.6419802149358833,
+      "precision": 0.502962212872673,
+      "recall": 0.8872013345312788,
+      "f1": 0.641979753134614,
+      "tp": 345698,
+      "fp": 341626,
+      "fn": 43952,
+      "tn": 3013316,
+      "filename": "tile7_image_part_005.jpg"
+    },
+    {
+      "iou": 3.3430281147546877e-11,
+      "dice": 3.3430281147546877e-11,
+      "precision": 1.8518518175582995e-08,
+      "recall": 3.349073980932078e-11,
+      "f1": 1.2178050181905747e-12,
+      "tp": 0,
+      "fp": 54,
+      "fn": 29859,
+      "tn": 3716741,
+      "filename": "tile7_image_part_006.jpg"
+    },
+    {
+      "iou": 0.2910118641019471,
+      "dice": 0.4508275596678837,
+      "precision": 0.3673573402982111,
+      "recall": 0.5833826230556491,
+      "f1": 0.45082708548900974,
+      "tp": 18740,
+      "fp": 32273,
+      "fn": 13383,
+      "tn": 3680441,
+      "filename": "tile7_image_part_007.jpg"
+    },
+    {
+      "iou": 3.912363065761986e-10,
+      "dice": 3.912363065761986e-10,
+      "precision": 3.912363065761986e-10,
+      "recall": 1.0,
+      "f1": 7.824718303744355e-10,
+      "tp": 0,
+      "fp": 2556,
+      "fn": 0,
+      "tn": 3740220,
+      "filename": "tile7_image_part_008.jpg"
+    },
+    {
+      "iou": 1.0,
+      "dice": 1.0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 0.99999950000025,
+      "tp": 0,
+      "fp": 0,
+      "fn": 0,
+      "tn": 3744837,
+      "filename": "tile7_image_part_009.jpg"
+    }
+  ]
+}

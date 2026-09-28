@@ -1,0 +1,197 @@
+{
+  "test_split": "Tile 8 (geographically held out)",
+  "number_of_images": 9,
+  "image_dimensions": [
+    [
+      2149,
+      1479
+    ],
+    [
+      2149,
+      1480
+    ]
+  ],
+  "ground_truth_mask_dimensions": [
+    [
+      2149,
+      1479
+    ],
+    [
+      2149,
+      1480
+    ]
+  ],
+  "building_class_definition": {
+    "rgb": [
+      60,
+      16,
+      152
+    ],
+    "hex": "#3C1098",
+    "binary_0_background": true,
+    "binary_255_building": true
+  },
+  "models": {
+    "YOLO11-Seg": {
+      "iou": 0.2041325114288511,
+      "dice": 0.32509775341224423,
+      "precision": 0.20417710505730194,
+      "recall": 0.9992224390034248,
+      "f1": 0.32509749222979994,
+      "latency_sec": 0.9350467787848579,
+      "tp": 5822152,
+      "fp": 22647407,
+      "fn": 4724,
+      "pred_buildings": 572,
+      "parameters": 2834763,
+      "size_mb": 5.72
+    },
+    "U-Net++": {
+      "iou": 0.4804129027542951,
+      "dice": 0.6408794358261044,
+      "precision": 0.5362089503237017,
+      "recall": 0.8181917730263536,
+      "f1": 0.6408789651288922,
+      "latency_sec": 1.0521297189924452,
+      "tp": 4849374,
+      "fp": 3582623,
+      "fn": 977502,
+      "pred_buildings": 340,
+      "parameters": 12447889,
+      "size_mb": 57.32
+    },
+    "Mask R-CNN": {
+      "iou": 0.25824203318334304,
+      "dice": 0.4062446982192118,
+      "precision": 0.3788581772610191,
+      "recall": 0.5330159855143672,
+      "f1": 0.4062442513739189,
+      "latency_sec": 15.909674326578775,
+      "tp": 2711094,
+      "fp": 4536619,
+      "fn": 3115782,
+      "pred_buildings": 1307,
+      "parameters": 45880411,
+      "size_mb": 175.37
+    }
+  },
+  "per_image": [
+    {
+      "image": "tile8_image_part_001.jpg",
+      "yolo_iou": 0.1116,
+      "unet_iou": 0.4046,
+      "mrcnn_iou": 0.1411,
+      "yolo_dice": 0.2007,
+      "unet_dice": 0.5761,
+      "mrcnn_dice": 0.2472,
+      "yolo_inst": 72,
+      "unet_inst": 24,
+      "mrcnn_inst": 127,
+      "best_iou": "U-Net++"
+    },
+    {
+      "image": "tile8_image_part_002.jpg",
+      "yolo_iou": 0.0592,
+      "unet_iou": 0.3349,
+      "mrcnn_iou": 0.1977,
+      "yolo_dice": 0.1118,
+      "unet_dice": 0.5018,
+      "mrcnn_dice": 0.3301,
+      "yolo_inst": 49,
+      "unet_inst": 12,
+      "mrcnn_inst": 150,
+      "best_iou": "U-Net++"
+    },
+    {
+      "image": "tile8_image_part_003.jpg",
+      "yolo_iou": 0.1523,
+      "unet_iou": 0.4916,
+      "mrcnn_iou": 0.3447,
+      "yolo_dice": 0.2643,
+      "unet_dice": 0.6592,
+      "mrcnn_dice": 0.5127,
+      "yolo_inst": 45,
+      "unet_inst": 24,
+      "mrcnn_inst": 150,
+      "best_iou": "U-Net++"
+    },
+    {
+      "image": "tile8_image_part_004.jpg",
+      "yolo_iou": 0.3254,
+      "unet_iou": 0.6122,
+      "mrcnn_iou": 0.3456,
+      "yolo_dice": 0.491,
+      "unet_dice": 0.7594,
+      "mrcnn_dice": 0.5137,
+      "yolo_inst": 60,
+      "unet_inst": 44,
+      "mrcnn_inst": 130,
+      "best_iou": "U-Net++"
+    },
+    {
+      "image": "tile8_image_part_005.jpg",
+      "yolo_iou": 0.1797,
+      "unet_iou": 0.5813,
+      "mrcnn_iou": 0.318,
+      "yolo_dice": 0.3046,
+      "unet_dice": 0.7352,
+      "mrcnn_dice": 0.4826,
+      "yolo_inst": 69,
+      "unet_inst": 14,
+      "mrcnn_inst": 150,
+      "best_iou": "U-Net++"
+    },
+    {
+      "image": "tile8_image_part_006.jpg",
+      "yolo_iou": 0.1261,
+      "unet_iou": 0.3621,
+      "mrcnn_iou": 0.2455,
+      "yolo_dice": 0.224,
+      "unet_dice": 0.5317,
+      "mrcnn_dice": 0.3942,
+      "yolo_inst": 56,
+      "unet_inst": 74,
+      "mrcnn_inst": 150,
+      "best_iou": "U-Net++"
+    },
+    {
+      "image": "tile8_image_part_007.jpg",
+      "yolo_iou": 0.3915,
+      "unet_iou": 0.6084,
+      "mrcnn_iou": 0.2415,
+      "yolo_dice": 0.5627,
+      "unet_dice": 0.7565,
+      "mrcnn_dice": 0.389,
+      "yolo_inst": 59,
+      "unet_inst": 41,
+      "mrcnn_inst": 150,
+      "best_iou": "U-Net++"
+    },
+    {
+      "image": "tile8_image_part_008.jpg",
+      "yolo_iou": 0.3492,
+      "unet_iou": 0.5902,
+      "mrcnn_iou": 0.2624,
+      "yolo_dice": 0.5177,
+      "unet_dice": 0.7423,
+      "mrcnn_dice": 0.4158,
+      "yolo_inst": 61,
+      "unet_inst": 29,
+      "mrcnn_inst": 150,
+      "best_iou": "U-Net++"
+    },
+    {
+      "image": "tile8_image_part_009.jpg",
+      "yolo_iou": 0.1422,
+      "unet_iou": 0.3384,
+      "mrcnn_iou": 0.2277,
+      "yolo_dice": 0.249,
+      "unet_dice": 0.5057,
+      "mrcnn_dice": 0.3709,
+      "yolo_inst": 101,
+      "unet_inst": 78,
+      "mrcnn_inst": 150,
+      "best_iou": "U-Net++"
+    }
+  ]
+}

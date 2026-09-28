@@ -1,0 +1,22 @@
+MASK R-CNN EVALUATION REPORT (VAL SET)
+========================================================================
+Dataset Partition        : VAL Split (18 images)
+Model Checkpoint         : runs\maskrcnn\building_instances\best.pth
+Confidence Threshold     : 0.35
+Mask Threshold           : 0.5
+
+QUANTITATIVE PERFORMANCE METRICS
+------------------------------------------------------------------------
+Total Ground Truth Buildings    : 738
+Total Predicted Buildings       : 1800
+True Positives (TP)             : 16
+False Positives (FP)            : 1784
+Missed Buildings (FN)           : 722
+
+Instance Precision              : 0.0089
+Instance Recall                 : 0.0217
+Instance F1-Score               : 0.0126
+Mean Pixel IoU (Jaccard)        : 0.0458
+Mean Pixel Dice (F1)            : 0.0796
+Average Detection Confidence    : 0.9547
+========================================================================

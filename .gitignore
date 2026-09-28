@@ -1,0 +1,87 @@
+# Environment files and credentials
+.env
+.env.*
+!.env.example
+!**/.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*service-account*.json
+*credentials*.json
+
+# Local environments, dependencies, caches, and editor state
+.venv/
+venv/
+node_modules/
+.npm-cache/
+__pycache__/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.cache/
+.idea/
+.vscode/
+*.py[cod]
+*.log
+*.bak
+*.tmp
+*.orig
+*.rej
+*~
+
+# Build output
+dist/
+build/
+
+# Local databases and runtime job data
+*.db
+*.sqlite
+*.sqlite3
+*.db-shm
+*.db-wal
+backend/uploads/
+backend/outputs/
+backend/jobs/*.json
+backend/backend/uploads/
+backend/backend/outputs/
+backend/backend/jobs/
+uploads/
+outputs/
+
+# Generated GIS outputs
+gis_processing/outputs/
+gis_processing/predictions/
+
+# Local temporary/test artifacts
+tmp_spatial_empty/
+
+# Training datasets and generated evaluation not used by the runtime UI
+building_segmentation/dataset_yolo/
+building_segmentation/maskrcnn_dataset/
+building_segmentation/processed_maskrcnn_fixed/
+building_segmentation/comparison_results/
+building_segmentation/validation_results/
+building_segmentation/unet_validation_results/
+building_segmentation/maskrcnn_validation_results/
+
+# Keep only the explicit production checkpoints and runtime preview artifacts
+runs/
+!building_segmentation/runs/
+building_segmentation/runs/*
+!building_segmentation/runs/predictions/
+!building_segmentation/runs/segment/
+!building_segmentation/runs/unetpp/
+building_segmentation/runs/segment/*
+!building_segmentation/runs/segment/building_yolo11/
+building_segmentation/runs/segment/building_yolo11/*
+!building_segmentation/runs/segment/building_yolo11/weights/
+building_segmentation/runs/segment/building_yolo11/weights/*
+!building_segmentation/runs/segment/building_yolo11/weights/best.pt
+building_segmentation/runs/unetpp/*
+!building_segmentation/runs/unetpp/building_refinement/
+building_segmentation/runs/unetpp/building_refinement/*
+!building_segmentation/runs/unetpp/building_refinement/best.pt
+
+# Pretrained training initialization weights, not a production inference model
+/yolo11n-seg.pt

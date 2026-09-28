@@ -1,0 +1,30 @@
+MODEL SELECTION SUMMARY
+=======================
+Benchmark evidence: Tile 8 unseen test split, 9 images, 1358 ground-truth buildings.
+
+Best segmentation balance: U-Net++
+- Highest mean pixel IoU: 0.4804
+- Highest mean pixel Dice: 0.6409
+- Highest mean pixel precision: 0.5362
+- Lowest false-positive burden among the non-YOLO models: 3,582,623 FP
+- Best benchmark model for contiguous footprint quality and geometric boundary fidelity.
+
+Highest recall: YOLO11-Seg
+- Mean recall: 0.9992
+- Lowest false negatives: 4,724
+- This comes with much worse precision and weaker boundary-quality trade-offs.
+
+Best speed: YOLO11-Seg
+- 0.935 s/image
+- 5.72 MB checkpoint
+- Useful for rapid screening, not for final boundary-sensitive footprint generation.
+
+Most suitable for footprint refinement: U-Net++
+- Best pixel-level fidelity and clean boundary segmentation for downstream geometry cleanup.
+- Preferred model for GIS polygon generation in this prototype pipeline.
+
+Best benchmark/validation model: U-Net++
+- Based on segmentation balance across IoU, Dice, precision, and false-positive burden, not a single metric.
+- Mask R-CNN is heavier and lower on contiguous-mask segmentation quality for this benchmark.
+
+Important limitation: the benchmark is based on 9 unseen images only and is not a proof of production-ready general urban extraction performance.

@@ -1,0 +1,3 @@
+import { useState } from 'react'
+import { Eye, EyeOff } from 'lucide-react'
+export default function PasswordInput({ value, onChange, error }) { const [visible,setVisible]=useState(false); return <label className="field"><span>Password</span><div className={`input-wrap ${error?'input-wrap--error':''}`}><input required minLength="8" value={value} onChange={e=>onChange(e.target.value)} type={visible?'text':'password'} placeholder="Enter your password" autoComplete="current-password"/><button type="button" onClick={()=>setVisible(!visible)} aria-label={visible?'Hide password':'Show password'}>{visible?<EyeOff size={18}/>:<Eye size={18}/>}</button></div>{error&&<small role="alert">{error}</small>}</label> }

@@ -1,0 +1,1104 @@
+/* ==========================================================================
+   GEOCADASTRA PLATFORM COMMAND CENTER — STYLING
+   ========================================================================== */
+
+.platform-page {
+  --plat-bg: #030a12;
+  --plat-surface: rgba(7, 21, 35, 0.92);
+  --plat-surface-elevated: rgba(11, 29, 48, 0.95);
+  --plat-card-bg: linear-gradient(150deg, rgba(10, 28, 46, 0.92) 0%, rgba(5, 17, 28, 0.96) 100%);
+  --plat-line: rgba(57, 243, 208, 0.16);
+  --plat-line-subtle: rgba(143, 164, 184, 0.14);
+  --plat-line-hover: rgba(57, 243, 208, 0.45);
+  --plat-dim: #8ba4b6;
+  --plat-dim-strong: #bad0df;
+  --plat-text: #f0f7fb;
+  --plat-cyan: #39f3d0;
+  --plat-cyan-glow: rgba(57, 243, 208, 0.28);
+  --plat-cyan-subtle: rgba(57, 243, 208, 0.08);
+  --plat-amber: #f2c56c;
+
+  position: relative;
+  isolation: isolate;
+  width: min(1440px, 100%);
+  margin: 0 auto;
+  padding: 24px clamp(20px, 3.5vw, 44px) 60px;
+  box-sizing: border-box;
+  color: var(--plat-text);
+  overflow: hidden;
+}
+
+/* ==========================================================================
+   BACKGROUND BACKDROP (SUBTLE REAL DRONE AERIAL + HUD GRID)
+   ========================================================================== */
+
+.platform-bg-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.platform-bg-image {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0.07;
+  filter: contrast(130%) grayscale(60%);
+  transform: scale(1.05);
+}
+
+.platform-bg-grid {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(57, 243, 208, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(57, 243, 208, 0.03) 1px, transparent 1px);
+  background-size: 38px 38px;
+  mask-image: radial-gradient(ellipse at center, black 40%, transparent 90%);
+}
+
+.platform-bg-vignette {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse at 15% 15%, rgba(57, 243, 208, 0.09), transparent 45%),
+    radial-gradient(ellipse at 85% 25%, rgba(34, 211, 238, 0.07), transparent 40%),
+    radial-gradient(ellipse at 50% 85%, rgba(16, 45, 75, 0.35), transparent 55%),
+    linear-gradient(180deg, rgba(3, 10, 18, 0.94) 0%, rgba(5, 17, 28, 0.98) 100%);
+}
+
+/* ==========================================================================
+   TOPLINE HUD BAR
+   ========================================================================== */
+
+.platform-topline-hud {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 40px;
+  margin-bottom: 22px;
+  padding: 8px 18px;
+  border: 1px solid var(--plat-line-subtle);
+  border-radius: 6px;
+  background: rgba(6, 19, 31, 0.75);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+  font-family: 'Cascadia Code', 'SFMono-Regular', Consolas, monospace;
+  font-size: 11.5px;
+}
+
+.platform-topline-left,
+.platform-topline-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.platform-pulse-beacon {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--plat-cyan);
+  box-shadow: 0 0 10px var(--plat-cyan);
+  animation: beacon-ping 2.2s infinite ease-in-out;
+}
+
+.platform-topline-tag {
+  color: var(--plat-cyan);
+  font-weight: 800;
+  letter-spacing: 0.14em;
+}
+
+.platform-topline-divider {
+  color: #3b576b;
+}
+
+.platform-topline-sub {
+  color: var(--plat-dim);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.platform-hud-metric {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 9px;
+  border: 1px solid var(--plat-line-subtle);
+  border-radius: 4px;
+  color: #a3bcd0;
+  background: rgba(8, 25, 40, 0.6);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+
+.platform-pulse-icon {
+  color: var(--plat-cyan);
+  animation: pulse-glow 2s infinite ease;
+}
+
+/* Tone Classes */
+.tone-cyan {
+  color: var(--plat-cyan) !important;
+}
+
+/* ==========================================================================
+   BUTTONS
+   ========================================================================== */
+
+.platform-btn {
+  position: relative;
+  display: inline-flex;
+  min-height: 42px;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  padding: 0 20px;
+  border: 1px solid var(--plat-line-subtle);
+  border-radius: 6px;
+  color: #dceaf2;
+  background: rgba(8, 26, 42, 0.9);
+  font-family: 'Cascadia Code', 'SFMono-Regular', Consolas, monospace;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: all 180ms cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.platform-btn:hover {
+  transform: translateY(-2px);
+  border-color: var(--plat-cyan);
+  color: #ffffff;
+  background: rgba(14, 38, 59, 0.98);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.4), 0 0 14px var(--plat-cyan-glow);
+}
+
+.platform-btn:active {
+  transform: translateY(0);
+}
+
+.platform-btn:focus-visible {
+  outline: 2px solid var(--plat-cyan);
+  outline-offset: 2px;
+}
+
+.platform-btn--primary {
+  border-color: rgba(57, 243, 208, 0.7);
+  color: #03111b;
+  background: linear-gradient(180deg, #57ffdc 0%, #25e2c1 100%);
+  font-weight: 900;
+  box-shadow: 0 2px 14px rgba(57, 243, 208, 0.35);
+}
+
+.platform-btn--primary:hover {
+  color: #010a10;
+  background: linear-gradient(180deg, #7affeb 0%, #3dfad7 100%);
+  box-shadow: 0 4px 22px rgba(57, 243, 208, 0.5), 0 0 18px rgba(57, 243, 208, 0.4);
+}
+
+.platform-btn--secondary {
+  border-color: rgba(57, 243, 208, 0.3);
+  background: rgba(9, 28, 47, 0.92);
+}
+
+.platform-btn--secondary:hover {
+  border-color: var(--plat-cyan);
+  color: var(--plat-cyan);
+}
+
+.platform-btn--ghost {
+  border-color: rgba(143, 164, 184, 0.2);
+  color: #b0c7d8;
+  background: rgba(6, 19, 31, 0.6);
+}
+
+.platform-btn--ghost:hover {
+  border-color: var(--plat-cyan);
+  color: var(--plat-cyan);
+  background: rgba(8, 26, 42, 0.85);
+}
+
+.platform-btn--sm {
+  min-height: 34px;
+  padding: 0 14px;
+  font-size: 11px;
+}
+
+/* ==========================================================================
+   HERO COMMAND CENTER SECTION
+   ========================================================================== */
+
+.platform-hero-card {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(260px, 0.7fr);
+  gap: clamp(24px, 4vw, 44px);
+  align-items: center;
+  padding: clamp(32px, 4.5vw, 54px);
+  border: 1px solid var(--plat-line);
+  border-radius: 12px;
+  background:
+    radial-gradient(circle at 12% 20%, rgba(57, 243, 208, 0.09), transparent 35%),
+    radial-gradient(circle at 85% 30%, rgba(34, 211, 238, 0.06), transparent 30%),
+    linear-gradient(145deg, rgba(8, 24, 40, 0.96) 0%, rgba(4, 14, 25, 0.98) 100%);
+  box-shadow: inset 0 1px 0 rgba(57, 243, 208, 0.12), 0 24px 60px rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(16px);
+  margin-bottom: 48px;
+  overflow: hidden;
+}
+
+.platform-hero-content {
+  position: relative;
+  z-index: 1;
+}
+
+/* Eyebrow Component */
+.platform-eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+  color: var(--plat-cyan);
+  font-family: 'Cascadia Code', 'SFMono-Regular', Consolas, monospace;
+  font-size: 11.5px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+}
+
+.platform-eyebrow-line {
+  width: 20px;
+  height: 2px;
+  background: var(--plat-cyan);
+  box-shadow: 0 0 8px var(--plat-cyan);
+}
+
+.platform-hero-title {
+  margin: 0;
+  color: #f7fcfe;
+  font-size: clamp(2.4rem, 4.8vw, 3.8rem);
+  font-weight: 900;
+  letter-spacing: -0.045em;
+  line-height: 1.05;
+}
+
+.platform-title-cyan {
+  color: var(--plat-cyan);
+  text-shadow: 0 0 24px var(--plat-cyan-glow);
+}
+
+.platform-hero-lede {
+  margin: 16px 0 0;
+  color: #d8e8f3;
+  font-size: clamp(16px, 1.8vw, 20px);
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+.platform-hero-description {
+  max-width: 680px;
+  margin: 12px 0 0;
+  color: var(--plat-dim);
+  font-size: 13.5px;
+  line-height: 1.8;
+}
+
+/* Hero Metrics Grid */
+.platform-hero-metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 24px;
+  max-width: 720px;
+}
+
+.platform-metric-cell {
+  padding: 14px 16px;
+  border: 1px solid var(--plat-line-subtle);
+  border-radius: 8px;
+  background: rgba(6, 20, 33, 0.7);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+  transition: all 180ms ease;
+}
+
+.platform-metric-cell:hover {
+  border-color: rgba(57, 243, 208, 0.4);
+  background: rgba(9, 29, 48, 0.85);
+}
+
+.platform-metric-label {
+  display: block;
+  margin-bottom: 5px;
+  color: #728f9f;
+  font-family: 'Cascadia Code', 'SFMono-Regular', Consolas, monospace;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+}
+
+.platform-metric-val {
+  display: block;
+  color: #eff6fb;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+}
+
+.platform-metric-cell small {
+  display: block;
+  margin-top: 4px;
+  color: var(--plat-dim);
+  font-size: 11px;
+}
+
+/* Hero Action Cluster */
+.platform-hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-top: 28px;
+}
+
+/* Tactical Visual Box */
+.platform-hero-visual {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 20px;
+  border: 1px solid var(--plat-line);
+  border-radius: 12px;
+  background: linear-gradient(160deg, rgba(9, 28, 48, 0.75) 0%, rgba(4, 15, 26, 0.9) 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 20px 48px rgba(0, 0, 0, 0.35);
+  overflow: hidden;
+}
+
+.platform-radar-ring {
+  position: absolute;
+  width: 240px;
+  height: 240px;
+  border: 1px dashed rgba(57, 243, 208, 0.22);
+  border-radius: 50%;
+  animation: radar-rotate 26s linear infinite;
+  pointer-events: none;
+}
+
+.platform-radar-crosshair {
+  position: absolute;
+  inset: 14px;
+  border: 1px solid rgba(57, 243, 208, 0.08);
+  pointer-events: none;
+}
+
+.platform-radar-crosshair::before,
+.platform-radar-crosshair::after {
+  content: '';
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border-color: var(--plat-cyan);
+  border-style: solid;
+}
+
+.platform-radar-crosshair::before {
+  top: -1px;
+  left: -1px;
+  border-width: 2px 0 0 2px;
+}
+
+.platform-radar-crosshair::after {
+  bottom: -1px;
+  right: -1px;
+  border-width: 0 2px 2px 0;
+}
+
+.platform-robot-img {
+  position: relative;
+  z-index: 1;
+  width: min(100%, 200px);
+  height: auto;
+  filter: drop-shadow(0 0 24px rgba(57, 243, 208, 0.25));
+  transition: transform 300ms ease;
+}
+
+.platform-hero-visual:hover .platform-robot-img {
+  transform: scale(1.05) translateY(-3px);
+}
+
+.platform-visual-hud-tag {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  margin-top: 14px;
+  font-family: 'Cascadia Code', 'SFMono-Regular', Consolas, monospace;
+}
+
+.platform-visual-hud-tag span {
+  color: var(--plat-cyan);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+}
+
+.platform-visual-hud-tag small {
+  color: #7997ab;
+  font-size: 9px;
+  letter-spacing: 0.08em;
+}
+
+/* ==========================================================================
+   GENERIC SECTION HEADINGS
+   ========================================================================== */
+
+.platform-section {
+  margin-top: clamp(48px, 6vw, 76px);
+}
+
+.platform-section-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.platform-section-title {
+  margin: 0;
+  color: #f1f8fc;
+  font-size: clamp(1.6rem, 3.2vw, 2.4rem);
+  font-weight: 800;
+  letter-spacing: -0.035em;
+  line-height: 1.15;
+}
+
+.platform-section-subtitle {
+  margin-top: 6px;
+  color: var(--plat-dim);
+  font-size: 13.5px;
+  line-height: 1.6;
+}
+
+.platform-section-index {
+  flex: 0 0 auto;
+  padding: 5px 10px;
+  border: 1px solid var(--plat-line-subtle);
+  border-radius: 4px;
+  color: #607e93;
+  font-family: 'Cascadia Code', 'SFMono-Regular', Consolas, monospace;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  background: rgba(5, 17, 28, 0.65);
+}
+
+/* ==========================================================================
+   SECTION 01: FROM PIXELS TO PARCELS (PIPELINE WORKFLOW)
+   ========================================================================== */
+
+.platform-pipeline-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.platform-stage-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.platform-stage-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-height: 240px;
+  padding: 20px 18px;
+  border: 1px solid var(--plat-line-subtle);
+  border-radius: 8px;
+  background: var(--plat-card-bg);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.02);
+  transition: all 200ms cubic-bezier(0.16, 1, 0.3, 1);
+  overflow: hidden;
+}
+
+.platform-stage-card:hover {
+  transform: translateY(-3px);
+  border-color: var(--plat-cyan);
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.35), 0 0 14px var(--plat-cyan-glow);
+}
+
+.platform-stage-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.platform-stage-number {
+  color: var(--plat-cyan);
+  font-family: 'Cascadia Code', 'SFMono-Regular', Consolas, monospace;
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.platform-stage-icon-box {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border: 1px solid rgba(57, 243, 208, 0.28);
+  border-radius: 6px;
+  color: var(--plat-cyan);
+  background: rgba(57, 243, 208, 0.06);
+}
+
+.platform-stage-sub {
+  color: #6a869a;
+  font-family: 'Cascadia Code', 'SFMono-Regular', Consolas, monospace;
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+}
+
+.platform-stage-title {
+  margin: 4px 0 8px;
+  color: #f1f8fc;
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.platform-stage-desc {
+  flex: 1;
+  color: var(--plat-dim);
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+
+.platform-stage-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(143, 164, 184, 0.1);
+}
+
+.platform-stage-tag {
+  padding: 3px 7px;
+  border: 1px solid var(--plat-line-subtle);
+  border-radius: 3px;
+  color: #9cb5c5;
+  background: rgba(6, 18, 30, 0.6);
+  font-family: 'Cascadia Code', 'SFMono-Regular', Consolas, monospace;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+
+.platform-stage-link {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--plat-line-subtle);
+  border-radius: 4px;
+  color: var(--plat-cyan);
+  background: rgba(8, 25, 40, 0.7);
+  text-decoration: none;
+  transition: all 160ms ease;
+}
+
+.platform-stage-link:hover {
+  border-color: var(--plat-cyan);
+  background: var(--plat-cyan);
+  color: #03111b;
+  transform: translateX(2px);
+}
+
+/* Animated Connector Line */
+.platform-pipeline-connector {
+  position: absolute;
+  right: -14px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  width: 14px;
+  pointer-events: none;
+}
+
+.platform-connector-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, rgba(57, 243, 208, 0.4), rgba(57, 243, 208, 0.8));
+}
+
+.platform-connector-packet {
+  position: absolute;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--plat-cyan);
+  box-shadow: 0 0 6px var(--plat-cyan);
+  animation: packet-flow 1.8s infinite linear;
+}
+
+.platform-connector-arrow {
+  position: absolute;
+  right: -6px;
+  color: var(--plat-cyan);
+}
+
+/* ==========================================================================
+   SECTION 02: ONE PLATFORM (3 CORE ENGINES)
+   ========================================================================== */
+
+.platform-core-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 20px;
+}
+
+.platform-core-card {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 26px 24px;
+  border: 1px solid var(--plat-line);
+  border-radius: 10px;
+  background: var(--plat-card-bg);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.02);
+  transition: all 200ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.platform-core-card:hover {
+  transform: translateY(-3px);
+  border-color: var(--plat-cyan);
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.35), 0 0 16px var(--plat-cyan-glow);
+}
+
+.platform-core-card-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+.platform-core-icon-box {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  flex: 0 0 auto;
+  border: 1px solid rgba(57, 243, 208, 0.3);
+  border-radius: 8px;
+  color: var(--plat-cyan);
+  background: rgba(57, 243, 208, 0.06);
+  box-shadow: 0 0 14px rgba(57, 243, 208, 0.1);
+}
+
+.platform-core-kicker {
+  display: block;
+  margin-bottom: 4px;
+  color: #728f9f;
+  font-family: 'Cascadia Code', 'SFMono-Regular', Consolas, monospace;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+}
+
+.platform-core-title {
+  margin: 0;
+  color: #f1f8fc;
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+}
+
+.platform-core-desc {
+  color: var(--plat-dim);
+  font-size: 13.5px;
+  line-height: 1.7;
+  margin-bottom: 20px;
+}
+
+.platform-core-specs-list {
+  display: grid;
+  gap: 8px;
+  margin: 0 0 22px;
+  padding: 14px;
+  border: 1px solid var(--plat-line-subtle);
+  border-radius: 6px;
+  background: rgba(5, 17, 28, 0.6);
+}
+
+.platform-core-spec-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 12px;
+}
+
+.platform-spec-label {
+  color: #6a869a;
+  font-family: 'Cascadia Code', 'SFMono-Regular', Consolas, monospace;
+  font-weight: 800;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+}
+
+.platform-spec-val {
+  color: #e2eff7;
+  font-weight: 700;
+  text-align: right;
+  font-size: 12px;
+}
+
+.platform-core-card-foot {
+  margin-top: auto;
+  display: flex;
+}
+
+.platform-core-card-foot .platform-btn {
+  width: 100%;
+  justify-content: space-between;
+}
+
+/* ==========================================================================
+   SECTION 03: VISUAL DATA PIPELINE
+   ========================================================================== */
+
+.platform-dataflow-panel {
+  padding: 26px 24px;
+  border: 1px solid var(--plat-line);
+  border-radius: 10px;
+  background: linear-gradient(160deg, rgba(8, 23, 38, 0.85) 0%, rgba(5, 16, 26, 0.95) 100%);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.25);
+}
+
+.platform-dataflow-stream {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--plat-line-subtle);
+}
+
+.platform-dataflow-node {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.platform-node-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 16px;
+  border: 1px solid var(--plat-line-subtle);
+  border-radius: 6px;
+  background: rgba(6, 19, 31, 0.8);
+  font-family: 'Cascadia Code', 'SFMono-Regular', Consolas, monospace;
+  font-size: 11.5px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: #e4edf3;
+  transition: all 180ms ease;
+}
+
+.platform-node-pill:hover {
+  border-color: var(--plat-cyan);
+  color: var(--plat-cyan);
+  background: rgba(9, 28, 46, 0.95);
+  box-shadow: 0 0 12px var(--plat-cyan-glow);
+}
+
+.platform-node-icon {
+  color: var(--plat-cyan);
+}
+
+.platform-node-connector {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: #456778;
+}
+
+.connector-dot {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--plat-cyan);
+  box-shadow: 0 0 6px var(--plat-cyan);
+}
+
+.platform-dataflow-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-top: 18px;
+  font-family: 'Cascadia Code', 'SFMono-Regular', Consolas, monospace;
+  font-size: 11px;
+  color: #728f9f;
+}
+
+.dataflow-meta-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ==========================================================================
+   SECTION 04: TURN IMAGERY INTO ACTION (CTA HERO BANNER)
+   ========================================================================== */
+
+.platform-cta-card {
+  position: relative;
+  margin-top: 48px;
+  padding: clamp(36px, 5vw, 60px) clamp(24px, 4vw, 48px);
+  border: 1px solid var(--plat-line);
+  border-radius: 12px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.platform-cta-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+}
+
+.platform-cta-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0.16;
+  filter: contrast(140%) grayscale(40%);
+}
+
+.platform-cta-overlay {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 20% 50%, rgba(57, 243, 208, 0.12), transparent 50%),
+    linear-gradient(135deg, rgba(4, 15, 25, 0.95) 0%, rgba(3, 10, 18, 0.97) 100%);
+}
+
+.platform-cta-scanlines {
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(57, 243, 208, 0.02) 2px,
+    rgba(57, 243, 208, 0.02) 4px
+  );
+  pointer-events: none;
+}
+
+.platform-cta-body {
+  position: relative;
+  z-index: 1;
+  max-width: 760px;
+}
+
+.platform-cta-heading {
+  margin: 8px 0 12px;
+  color: #f7fcfe;
+  font-size: clamp(2rem, 4vw, 3rem);
+  font-weight: 900;
+  letter-spacing: -0.04em;
+  line-height: 1.1;
+}
+
+.platform-cta-copy {
+  color: #d1e2ee;
+  font-size: 14.5px;
+  line-height: 1.7;
+  margin-bottom: 26px;
+}
+
+.platform-cta-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+
+/* ==========================================================================
+   KEYFRAME ANIMATIONS
+   ========================================================================== */
+
+@keyframes beacon-ping {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.4;
+    transform: scale(0.85);
+  }
+}
+
+@keyframes pulse-glow {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+@keyframes radar-rotate {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes packet-flow {
+  0% {
+    left: 0;
+    opacity: 0.2;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    left: 100%;
+    opacity: 0.2;
+  }
+}
+
+/* ==========================================================================
+   RESPONSIVE BREAKPOINTS
+   ========================================================================== */
+
+@media (max-width: 1180px) {
+  .platform-pipeline-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .platform-pipeline-connector {
+    display: none;
+  }
+
+  .platform-core-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .platform-core-card:last-child {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 860px) {
+  .platform-hero-card {
+    grid-template-columns: 1fr;
+  }
+
+  .platform-hero-visual {
+    order: -1;
+  }
+
+  .platform-hero-metrics-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .platform-pipeline-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .platform-core-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .platform-core-card:last-child {
+    grid-column: auto;
+  }
+
+  .platform-dataflow-stream {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .platform-dataflow-node {
+    justify-content: space-between;
+  }
+
+  .platform-node-connector {
+    transform: rotate(90deg);
+    margin: 4px auto;
+  }
+
+  .platform-section-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+}
+
+@media (max-width: 580px) {
+  .platform-page {
+    padding: 16px 14px 44px;
+  }
+
+  .platform-topline-right {
+    display: none;
+  }
+
+  .platform-pipeline-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .platform-hero-actions,
+  .platform-cta-actions {
+    flex-direction: column;
+  }
+
+  .platform-btn {
+    width: 100%;
+  }
+
+  .platform-dataflow-footer {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .platform-page *,
+  .platform-page *::before,
+  .platform-page *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
