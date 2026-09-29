@@ -24,12 +24,12 @@ def process_file(
 
     try:
         model_path = str(resolve_checkpoint_path(model))
-        job = create_job(str(file_path), model_path, parcels=parcel_file, parcel_id_field=parcel_id_field, conf=confidence, run_immediately=True)
+        job = create_job(str(file_path), model_path, parcels=parcel_file, parcel_id_field=parcel_id_field, conf=confidence)
         return {
             'job_id': job['job_id'],
             'status': 'queued',
             'progress': job.get('progress', 0),
-            'message': 'Job accepted and processing is running.',
+            'message': 'Job accepted and queued for processing.',
             'created_at': job.get('created_at'),
         }
     except FileNotFoundError as exc:

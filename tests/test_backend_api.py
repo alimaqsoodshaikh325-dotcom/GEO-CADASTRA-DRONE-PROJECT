@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import json
+import threading
+import time
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -7,10 +10,6 @@ from fastapi.testclient import TestClient
 from backend.app.main import app
 
 client = TestClient(app)
-
-
-import json
-
 
 def _write_png(path: Path) -> None:
     from PIL import Image
@@ -28,6 +27,18 @@ def _create_fake_artifacts(out_dir: Path) -> None:
     (out_dir / 'spatial_consensus.csv').write_text('status,model_name\n', encoding='utf-8')
     (out_dir / 'final_report.txt').write_text('processing complete', encoding='utf-8')
     (out_dir / 'original_metadata.json').write_text(json.dumps({'image_metadata': {'crs': 'EPSG:4326'}}), encoding='utf-8')
+
+
+def _wait_for_job_status(job_id: str, expected_status: str, timeout: float = 5) -> dict:
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        response = client.get(f'/api/status/{job_id}')
+        assert response.status_code == 200
+        job = response.json()
+        if job['status'] == expected_status:
+            return job
+        time.sleep(0.01)
+    raise AssertionError(f'Job {job_id} did not reach status {expected_status!r}.')
 
 
 def test_health_endpoint():
@@ -90,6 +101,48 @@ def test_process_request(tmp_path, monkeypatch):
     job = response.json()
     assert 'job_id' in job
     assert job['status'] == 'queued'
+    _wait_for_job_status(job['job_id'], 'completed')
+
+
+def test_process_dispatch_does_not_wait_for_pipeline(tmp_path, monkeypatch):
+    image_path = tmp_path / 'sample.png'
+    _write_png(image_path)
+    with image_path.open('rb') as handle:
+        uploaded = client.post('/api/upload', files={'file': ('sample.png', handle, 'image/png')})
+    file_id = uploaded.json()['file_id']
+    pipeline_started = threading.Event()
+    finish_pipeline = threading.Event()
+
+    def slow_pipeline(image, model, parcels=None, parcel_id_field='ID', output_dir=None, conf=0.5):
+        pipeline_started.set()
+        assert finish_pipeline.wait(timeout=5)
+        out_dir = Path(output_dir)
+        _create_fake_artifacts(out_dir)
+        return {
+            'output_dir': str(out_dir),
+            'georeferenced': False,
+            'valid_detections': 1,
+            'empty_result': False,
+            'ml_benchmark': 'PASS',
+            'gis_processing': 'PASS',
+            'spatial_consensus': 'PASS',
+            'overall_end_to_end': 'PARTIAL',
+            'report_path': str(out_dir / 'final_report.txt'),
+            'files': ['final_report.txt'],
+        }
+
+    monkeypatch.setattr('backend.app.services.pipeline_service.run_pipeline', slow_pipeline)
+    try:
+        response = client.post('/api/process', data={'file_id': file_id, 'model': DEFAULT_MODEL})
+        assert response.status_code == 200
+        job = response.json()
+        assert job['job_id']
+        assert job['status'] == 'queued'
+        assert pipeline_started.wait(timeout=2)
+    finally:
+        finish_pipeline.set()
+
+    _wait_for_job_status(job['job_id'], 'completed')
 
 
 def test_job_status(tmp_path, monkeypatch):
@@ -151,6 +204,7 @@ def test_completed_result(tmp_path, monkeypatch):
     monkeypatch.setattr('backend.app.services.pipeline_service.run_pipeline', fake_pipeline)
     process_response = client.post('/api/process', data={'file_id': file_id, 'model': DEFAULT_MODEL})
     job_id = process_response.json()['job_id']
+    _wait_for_job_status(job_id, 'completed')
     result_response = client.get(f'/api/results/{job_id}')
     assert result_response.status_code == 200
     payload = result_response.json()
@@ -184,6 +238,7 @@ def test_zero_detection_result(tmp_path, monkeypatch):
     monkeypatch.setattr('backend.app.services.pipeline_service.run_pipeline', fake_pipeline)
     process_response = client.post('/api/process', data={'file_id': file_id, 'model': DEFAULT_MODEL})
     job_id = process_response.json()['job_id']
+    _wait_for_job_status(job_id, 'completed')
     result_response = client.get(f'/api/results/{job_id}')
     assert result_response.status_code == 200
     payload = result_response.json()
@@ -210,6 +265,7 @@ def test_pipeline_failure_handling(tmp_path, monkeypatch):
 
     monkeypatch.setattr('backend.app.services.pipeline_service.run_pipeline', fake_fail)
     response = client.post('/api/process', data={'file_id': file_id, 'model': DEFAULT_MODEL})
-    assert response.status_code == 500
-    payload = response.json()
-    assert 'Processing failed' in payload['detail'] or 'Model checkpoint' in payload['detail']
+    assert response.status_code == 200
+    assert response.json()['status'] == 'queued'
+    failed_job = _wait_for_job_status(response.json()['job_id'], 'failed')
+    assert 'Model checkpoint' in failed_job['message']

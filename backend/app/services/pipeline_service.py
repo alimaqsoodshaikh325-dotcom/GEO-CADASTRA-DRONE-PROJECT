@@ -19,6 +19,7 @@ from backend.app.db.repositories import (
 from run_full_pipeline import run_pipeline as _run_pipeline
 
 run_pipeline = _run_pipeline
+_JOB_FILE_LOCK = threading.Lock()
 
 REQUIRED_OUTPUT_FILES = (
     'final_buildings.geojson',
@@ -38,6 +39,11 @@ def _utc_now() -> str:
 
 def _job_path(job_id: str) -> Path:
     return JOBS_DIR / f'{job_id}.json'
+
+
+def _write_job(job_id: str, record: dict) -> None:
+    with _JOB_FILE_LOCK:
+        _job_path(job_id).write_text(json.dumps(record, indent=2), encoding='utf-8')
 
 
 def _job_payload(job_id: str, *, status: str, progress: int, message: str, created_at: str, completed_at: str | None = None, payload: dict | None = None) -> dict:
@@ -152,7 +158,7 @@ def create_job(file_path: str, model: str, parcels: str | None = None, parcel_id
     job_id = str(uuid.uuid4())
     created_at = _utc_now()
     record = _job_payload(job_id, status='queued', progress=0, message='Job queued for processing.', created_at=created_at)
-    _job_path(job_id).write_text(json.dumps(record), encoding='utf-8')
+    _write_job(job_id, record)
     session = SessionLocal()
     try:
         ProcessingJobRepository(session).create(project_id=None, input_filename=Path(file_path).name, model_name=str(model), status='queued', job_id=job_id)
@@ -161,7 +167,7 @@ def create_job(file_path: str, model: str, parcels: str | None = None, parcel_id
 
     def worker() -> None:
         try:
-            _job_path(job_id).write_text(json.dumps(_job_payload(job_id, status='running', progress=25, message='Processing image with the existing GIS pipeline.', created_at=created_at), indent=2), encoding='utf-8')
+            _write_job(job_id, _job_payload(job_id, status='running', progress=25, message='Processing image with the existing GIS pipeline.', created_at=created_at))
             out_dir = OUTPUTS_DIR / job_id
             out_dir.mkdir(parents=True, exist_ok=True)
             result = run_pipeline(
@@ -174,7 +180,7 @@ def create_job(file_path: str, model: str, parcels: str | None = None, parcel_id
             )
             completed_at = datetime.now(timezone.utc)
             _persist_completed_job(job_id, result, completed_at)
-            _job_path(job_id).write_text(json.dumps(_job_payload(job_id, status='completed', progress=100, message='Processing completed.', created_at=created_at, completed_at=completed_at.isoformat(), payload=result), indent=2), encoding='utf-8')
+            _write_job(job_id, _job_payload(job_id, status='completed', progress=100, message='Processing completed.', created_at=created_at, completed_at=completed_at.isoformat(), payload=result))
             return result
         except Exception as exc:
             session = SessionLocal()
@@ -182,7 +188,7 @@ def create_job(file_path: str, model: str, parcels: str | None = None, parcel_id
                 ProcessingJobRepository(session).update_status(job_id, status='failed', error_message=str(exc), completed_at=datetime.now(timezone.utc))
             finally:
                 session.close()
-            _job_path(job_id).write_text(json.dumps(_job_payload(job_id, status='failed', progress=100, message=f'Processing failed: {exc}', created_at=created_at, completed_at=_utc_now(), payload={'error': str(exc)}), indent=2), encoding='utf-8')
+            _write_job(job_id, _job_payload(job_id, status='failed', progress=100, message=f'Processing failed: {exc}', created_at=created_at, completed_at=_utc_now(), payload={'error': str(exc)}))
             raise
 
     if run_immediately:
@@ -195,9 +201,10 @@ def create_job(file_path: str, model: str, parcels: str | None = None, parcel_id
 
 def read_job(job_id: str) -> dict:
     path = _job_path(job_id)
-    if not path.exists():
-        raise FileNotFoundError(f'Job not found: {job_id}')
-    return json.loads(path.read_text(encoding='utf-8'))
+    with _JOB_FILE_LOCK:
+        if not path.exists():
+            raise FileNotFoundError(f'Job not found: {job_id}')
+        return json.loads(path.read_text(encoding='utf-8'))
 
 
 def load_result(job_id: str) -> dict:
