@@ -13,8 +13,14 @@ import numpy as np
 import rasterio
 import segmentation_models_pytorch as smp
 import torch
+from rasterio.enums import Resampling
+from shapely.affinity import scale, translate
 from shapely.geometry import Polygon
 from shapely.geometry.base import BaseGeometry
+
+MAX_FULL_RESOLUTION_IMAGE_PIXELS = 1_000_000
+CPU_UNETPP_IMAGE_SIZE = 320
+CPU_MASKRCNN_TRANSFORM_SIZE = 512
 
 
 @dataclass
@@ -174,7 +180,6 @@ def _extract_buildings_yolo(image_path: str | Path, model_path: str | Path, conf
                         confidence=score,
                         bbox_px=(bounds[0], bounds[1], bounds[2], bounds[3]),
                         geometry_px=polygon,
-                        mask=bin_mask,
                     )
                 )
     return detections
@@ -186,18 +191,37 @@ def _extract_buildings_maskrcnn(image_path: str | Path, model_path: str | Path, 
     from torchvision.models.detection.mask_rcnn import MaskRCNNPredictor
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    ckpt = torch.load(model_path, map_location=device, weights_only=False)
+    checkpoint_options = {'map_location': device, 'weights_only': False}
+    if device.type == 'cpu':
+        torch.set_num_threads(1)
+        checkpoint_options['mmap'] = True
+    ckpt = torch.load(model_path, **checkpoint_options)
     config = ckpt.get('config', {})
     model_img_size = config.get('img_size', imgsz)
 
-    model = maskrcnn_resnet50_fpn_v2(weights=None)
+    def build_model():
+        if device.type == 'cpu':
+            with torch.device('meta'):
+                model = maskrcnn_resnet50_fpn_v2(weights=None)
+        else:
+            model = maskrcnn_resnet50_fpn_v2(weights=None)
+        return model
+
+    model = build_model()
     in_features = model.roi_heads.box_predictor.cls_score.in_features
     model.roi_heads.box_predictor = FastRCNNPredictor(in_features, 2)
     in_features_mask = model.roi_heads.mask_predictor.conv5_mask.in_channels
     dim_reduced = model.roi_heads.mask_predictor.conv5_mask.out_channels
     model.roi_heads.mask_predictor = MaskRCNNPredictor(in_features_mask, dim_reduced, 2)
-    model.load_state_dict(ckpt['model_state_dict'])
-    model.to(device)
+    load_options = {'assign': True} if device.type == 'cpu' else {}
+    model.load_state_dict(ckpt['model_state_dict'], **load_options)
+    del ckpt
+    if device.type == 'cpu':
+        model.to(device, memory_format=torch.channels_last)
+        model.transform.min_size = (min(CPU_MASKRCNN_TRANSFORM_SIZE, model_img_size * 2),)
+        model.transform.max_size = min(CPU_MASKRCNN_TRANSFORM_SIZE, model_img_size * 2)
+    else:
+        model.to(device)
     model.eval()
 
     img_bgr = cv2.imread(str(image_path))
@@ -205,36 +229,36 @@ def _extract_buildings_maskrcnn(image_path: str | Path, model_path: str | Path, 
         return []
     orig_h, orig_w = img_bgr.shape[:2]
     img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
+    del img_bgr
     img_resized = cv2.resize(img_rgb, (model_img_size, model_img_size), interpolation=cv2.INTER_LINEAR)
-    img_tensor = torch.from_numpy(img_resized.transpose(2, 0, 1)).float() / 255.0
-    img_tensor = img_tensor.unsqueeze(0).to(device)
+    del img_rgb
+    img_tensor = torch.from_numpy(img_resized.transpose(2, 0, 1).copy()).float().div_(255.0)
+    img_tensor = img_tensor.unsqueeze(0)
+    if device.type == 'cpu':
+        img_tensor = img_tensor.contiguous(memory_format=torch.channels_last)
+    img_tensor = img_tensor.to(device)
 
-    with torch.no_grad():
+    with torch.inference_mode():
         pred = model(img_tensor)[0]
 
-    boxes = pred['boxes'].cpu().numpy()
-    scores = pred['scores'].cpu().numpy()
-    masks = pred['masks'].squeeze(1).cpu().numpy()
-
-    keep = scores >= confidence
-    filtered_boxes = boxes[keep]
-    filtered_scores = scores[keep]
-    filtered_masks = masks[keep]
-
     detections: list[BuildingDetection] = []
-    for b_idx, (box, score, mask) in enumerate(zip(filtered_boxes, filtered_scores, filtered_masks)):
-        mask_full = cv2.resize((mask > 0.5).astype(np.uint8) * 255, (orig_w, orig_h), interpolation=cv2.INTER_NEAREST)
-        polygon = _polygon_from_component(mask_full)
-        if polygon is None or polygon.area < min_area:
+    for mask_index in torch.where(pred['scores'] >= confidence)[0].tolist():
+        score = float(pred['scores'][mask_index].item())
+        mask = pred['masks'][mask_index, 0].cpu().numpy()
+        polygon = _polygon_from_component((mask > 0.5).astype(np.uint8) * 255)
+        del mask
+        if polygon is None:
+            continue
+        polygon = scale(polygon, xfact=orig_w / model_img_size, yfact=orig_h / model_img_size, origin=(0, 0))
+        if polygon.area < min_area:
             continue
         bounds = polygon.bounds
         detections.append(
             BuildingDetection(
                 building_id=f'B{len(detections) + 1:03d}',
-                confidence=float(score),
+                confidence=score,
                 bbox_px=(bounds[0], bounds[1], bounds[2], bounds[3]),
                 geometry_px=polygon,
-                mask=mask_full,
             )
         )
     return detections
@@ -260,55 +284,81 @@ def extract_buildings(image_path: str | Path, model_path: str | Path, confidence
     model, config = load_unetpp_model(model_path, device)
     model_img_size = int(config.get('img_size', imgsz))
     if device.type == 'cpu':
-        model_img_size = min(model_img_size, 224)
+        model_img_size = min(model_img_size, CPU_UNETPP_IMAGE_SIZE)
 
     with rasterio.open(image_path) as dataset:
         count = dataset.count
-        if count == 1:
+        if count not in {1} and count < 3:
+            raise ValueError(f'Raster {image_path} must contain 1 or 3 bands for segmentation.')
+        original_h, original_w = dataset.height, dataset.width
+        if original_h * original_w > MAX_FULL_RESOLUTION_IMAGE_PIXELS:
+            indexes = [1] if count == 1 else [1, 2, 3]
+            rgb = dataset.read(
+                indexes,
+                out_shape=(len(indexes), model_img_size, model_img_size),
+                resampling=Resampling.bilinear,
+            )
+            if count == 1:
+                rgb = np.repeat(rgb[0][..., None], 3, axis=-1)
+            else:
+                rgb = np.moveaxis(rgb, 0, -1)
+        elif count == 1:
             rgb = dataset.read(1)
             rgb = np.repeat(rgb[..., None], 3, axis=-1)
-        elif count >= 3:
-            rgb = np.dstack([dataset.read(1), dataset.read(2), dataset.read(3)])
         else:
-            raise ValueError(f'Raster {image_path} must contain 1 or 3 bands for segmentation.')
+            rgb = np.dstack([dataset.read(1), dataset.read(2), dataset.read(3)])
 
     if rgb.dtype != np.uint8:
         rgb = np.clip(rgb, 0, 255).astype(np.uint8)
 
-    original_h, original_w = rgb.shape[:2]
     tensor = _preprocess_rgb(rgb, model_img_size).to(device)
-    with torch.no_grad():
+    del rgb
+    with torch.inference_mode():
         logits = model(tensor)
         probs = torch.sigmoid(logits).squeeze().cpu().numpy()
+    del logits, tensor, model
 
     if probs.ndim == 3:
         probs = probs[0]
     resized_probs = cv2.resize(probs.astype(np.float32), (original_w, original_h), interpolation=cv2.INTER_LINEAR)
-    binary_mask = (resized_probs >= confidence).astype(np.uint8) * 255
+    del probs
+    binary_mask = cv2.compare(resized_probs, confidence, cv2.CMP_GE)
     binary_mask = _refine_mask(binary_mask, open_k=3, close_k=3)
 
     num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(binary_mask, connectivity=8)
+    del binary_mask
     detections: list[BuildingDetection] = []
     for label_index in range(1, num_labels):
         area = stats[label_index, cv2.CC_STAT_AREA]
         if area < min_area:
             continue
-        component_mask = (labels == label_index).astype(np.uint8) * 255
+        left = stats[label_index, cv2.CC_STAT_LEFT]
+        top = stats[label_index, cv2.CC_STAT_TOP]
+        width = stats[label_index, cv2.CC_STAT_WIDTH]
+        height = stats[label_index, cv2.CC_STAT_HEIGHT]
+        component_mask = cv2.compare(
+            labels[top:top + height, left:left + width],
+            label_index,
+            cv2.CMP_EQ,
+        )
         polygon = _polygon_from_component(component_mask)
         if polygon is None:
             continue
+        polygon = translate(polygon, xoff=left, yoff=top)
         bounds = polygon.bounds
-        area_pixels = component_mask > 0
-        mean_conf = float(resized_probs[area_pixels].mean()) if area_pixels.any() else float(confidence)
+        mean_conf = float(cv2.mean(
+            resized_probs[top:top + height, left:left + width],
+            mask=component_mask,
+        )[0])
         detections.append(
             BuildingDetection(
                 building_id=f'B{len(detections) + 1:03d}',
                 confidence=mean_conf,
                 bbox_px=(bounds[0], bounds[1], bounds[2], bounds[3]),
                 geometry_px=polygon,
-                mask=component_mask,
             )
         )
+    del labels, stats, resized_probs
     return detections
 
 

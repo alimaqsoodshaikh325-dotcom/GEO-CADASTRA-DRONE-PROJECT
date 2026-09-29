@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from backend.app.core.config import JOBS_DIR, OUTPUTS_DIR
-from backend.app.db.database import SessionLocal
+from backend.app.db.database import USE_SQLITE_FALLBACK, SessionLocal
 from backend.app.db.repositories import (
     BuildingParcelRelationRepository,
     BuildingRepository,
@@ -20,6 +20,7 @@ from run_full_pipeline import run_pipeline as _run_pipeline
 
 run_pipeline = _run_pipeline
 _JOB_FILE_LOCK = threading.Lock()
+_PIPELINE_LOCK = threading.Lock()
 
 REQUIRED_OUTPUT_FILES = (
     'final_buildings.geojson',
@@ -59,6 +60,64 @@ def _job_payload(job_id: str, *, status: str, progress: int, message: str, creat
     return record
 
 
+def _job_from_database(job, session) -> dict:
+    created_at = job.started_at.isoformat() if job.started_at else _utc_now()
+    completed_at = job.completed_at.isoformat() if job.completed_at else None
+    status = job.status
+    progress = 100 if status in {'completed', 'failed'} else 25 if status == 'running' else 0
+    message = job.error_message or {
+        'queued': 'Job queued for processing.',
+        'running': 'Processing image with the existing GIS pipeline.',
+        'completed': 'Processing completed.',
+        'failed': 'Processing failed.',
+    }.get(status, f'Job status: {status}.')
+    payload = {
+        'input_filename': job.input_filename,
+        'model': job.model_name,
+        'output_dir': str(OUTPUTS_DIR / job.id),
+    }
+    model_results = ModelResultRepository(session).list_for_job(job.id)
+    if model_results:
+        model_result = model_results[-1]
+        metrics = model_result.metrics_json or {}
+        payload.update({
+            'valid_detections': int(model_result.prediction_count or 0),
+            'parcel_count': len(ParcelRepository(session).list_for_job(job.id)),
+            'georeferenced': metrics.get('georeferenced'),
+            'spatial_consensus': metrics.get('spatial_consensus'),
+            'empty_result': not bool(model_result.prediction_count),
+        })
+    return _job_payload(
+        job.id,
+        status=status,
+        progress=progress,
+        message=message,
+        created_at=created_at,
+        completed_at=completed_at,
+        payload=payload,
+    )
+
+
+def list_job_records() -> list[dict]:
+    records = []
+    if JOBS_DIR.exists():
+        for path in JOBS_DIR.glob('*.json'):
+            try:
+                records.append(json.loads(path.read_text(encoding='utf-8')))
+            except (OSError, json.JSONDecodeError):
+                continue
+    known_job_ids = {record.get('job_id') for record in records}
+    session = SessionLocal()
+    try:
+        for job in ProcessingJobRepository(session).list():
+            if job.id not in known_job_ids:
+                records.append(_job_from_database(job, session))
+    finally:
+        session.close()
+    records.sort(key=lambda record: record.get('created_at', ''), reverse=True)
+    return records
+
+
 def _validated_job_output_dir(job_id: str, result: dict) -> Path:
     """Return the one canonical output directory for a completed job.
 
@@ -83,20 +142,23 @@ def _persist_completed_job(job_id: str, result: dict, completed_at: datetime) ->
         jobs = ProcessingJobRepository(session)
         jobs.update_status(job_id, status='completed', completed_at=completed_at)
         model_name = str(result.get('model') or '')
-        ModelResultRepository(session).create(
-            job_id=job_id,
-            model_name=model_name,
-            inference_time=None,
-            prediction_count=int(result.get('valid_detections', 0)),
-            metrics_json={'spatial_consensus': result.get('spatial_consensus'), 'georeferenced': result.get('georeferenced')},
-        )
-
         output_dir = _validated_job_output_dir(job_id, result)
         geojson_path = output_dir / 'final_buildings.geojson'
         features = json.loads(geojson_path.read_text(encoding='utf-8')).get('features', [])
         metadata_path = output_dir / 'original_metadata.json'
         metadata = json.loads(metadata_path.read_text(encoding='utf-8'))
         source_crs = (metadata.get('image_metadata') or {}).get('crs')
+        ModelResultRepository(session).create(
+            job_id=job_id,
+            model_name=model_name,
+            inference_time=None,
+            prediction_count=int(result.get('valid_detections', 0)),
+            metrics_json={
+                'spatial_consensus': result.get('spatial_consensus'),
+                'georeferenced': result.get('georeferenced'),
+                'pixel_features': features if not result.get('georeferenced') else [],
+            },
+        )
         measurements = {}
         measurement_path = output_dir / 'building_measurements.csv'
         if measurement_path.exists():
@@ -167,20 +229,26 @@ def create_job(file_path: str, model: str, parcels: str | None = None, parcel_id
 
     def worker() -> None:
         try:
-            _write_job(job_id, _job_payload(job_id, status='running', progress=25, message='Processing image with the existing GIS pipeline.', created_at=created_at))
             out_dir = OUTPUTS_DIR / job_id
             out_dir.mkdir(parents=True, exist_ok=True)
-            result = run_pipeline(
-                image=file_path,
-                model=model,
-                parcels=parcels,
-                parcel_id_field=parcel_id_field,
-                output_dir=out_dir,
-                conf=conf,
-            )
-            completed_at = datetime.now(timezone.utc)
-            _persist_completed_job(job_id, result, completed_at)
-            _write_job(job_id, _job_payload(job_id, status='completed', progress=100, message='Processing completed.', created_at=created_at, completed_at=completed_at.isoformat(), payload=result))
+            with _PIPELINE_LOCK:
+                session = SessionLocal()
+                try:
+                    ProcessingJobRepository(session).update_status(job_id, status='running')
+                finally:
+                    session.close()
+                _write_job(job_id, _job_payload(job_id, status='running', progress=25, message='Processing image with the existing GIS pipeline.', created_at=created_at))
+                result = run_pipeline(
+                    image=file_path,
+                    model=model,
+                    parcels=parcels,
+                    parcel_id_field=parcel_id_field,
+                    output_dir=out_dir,
+                    conf=conf,
+                )
+                completed_at = datetime.now(timezone.utc)
+                _persist_completed_job(job_id, result, completed_at)
+                _write_job(job_id, _job_payload(job_id, status='completed', progress=100, message='Processing completed.', created_at=created_at, completed_at=completed_at.isoformat(), payload=result))
             return result
         except Exception as exc:
             session = SessionLocal()
@@ -202,9 +270,17 @@ def create_job(file_path: str, model: str, parcels: str | None = None, parcel_id
 def read_job(job_id: str) -> dict:
     path = _job_path(job_id)
     with _JOB_FILE_LOCK:
-        if not path.exists():
+        if path.exists():
+            return json.loads(path.read_text(encoding='utf-8'))
+
+    session = SessionLocal()
+    try:
+        job = ProcessingJobRepository(session).get(job_id)
+        if job is None:
             raise FileNotFoundError(f'Job not found: {job_id}')
-        return json.loads(path.read_text(encoding='utf-8'))
+        return _job_from_database(job, session)
+    finally:
+        session.close()
 
 
 def load_result(job_id: str) -> dict:
@@ -241,10 +317,42 @@ def list_buildings(job_id: str) -> list[dict]:
     payload = job.get('payload', {})
     output_dir = Path(payload.get('output_dir', ''))
     geojson_path = output_dir / 'final_buildings.geojson'
-    if not geojson_path.exists():
-        return []
-    data = json.loads(geojson_path.read_text(encoding='utf-8'))
-    return data.get('features', [])
+    if geojson_path.exists():
+        data = json.loads(geojson_path.read_text(encoding='utf-8'))
+        return data.get('features', [])
+
+    session = SessionLocal()
+    try:
+        model_results = ModelResultRepository(session).list_for_job(job_id)
+        metrics = model_results[-1].metrics_json or {} if model_results else {}
+        pixel_features = metrics.get('pixel_features') or []
+        if pixel_features:
+            return pixel_features
+        coordinate_space = 'geographic' if metrics.get('georeferenced') else 'pixel'
+        features = []
+        for building in BuildingRepository(session).list_for_job(job_id):
+            geometry = building.geometry
+            if geometry is None:
+                continue
+            if isinstance(geometry, str):
+                geometry = json.loads(geometry)
+            elif not USE_SQLITE_FALLBACK:
+                from geoalchemy2.shape import to_shape
+                from shapely.geometry import mapping
+                geometry = mapping(to_shape(geometry))
+            features.append({
+                'type': 'Feature',
+                'properties': {
+                    'building_id': building.building_id,
+                    'confidence': building.confidence,
+                    'coordinate_space': coordinate_space,
+                    'source_model': building.model_name,
+                },
+                'geometry': geometry,
+            })
+        return features
+    finally:
+        session.close()
 
 
 def list_parcel_results(job_id: str) -> dict:

@@ -15,6 +15,7 @@ from fastapi.responses import FileResponse, Response
 
 from backend.app.core.config import JOBS_DIR, OUTPUTS_DIR, UPLOAD_DIR
 from backend.app.db.database import USE_SQLITE_FALLBACK, database_status, engine
+from backend.app.services.pipeline_service import list_job_records
 
 router = APIRouter(tags=['Dashboard'])
 
@@ -50,15 +51,7 @@ def _same_artifact_stem(left: str, right: str) -> bool:
 
 def _list_jobs() -> list[dict]:
     """Return all job records sorted newest-first."""
-    jobs: list[dict] = []
-    if JOBS_DIR.exists():
-        for p in JOBS_DIR.glob('*.json'):
-            try:
-                jobs.append(json.loads(p.read_text(encoding='utf-8')))
-            except Exception:
-                pass
-    jobs.sort(key=lambda j: j.get('created_at', ''), reverse=True)
-    return jobs
+    return list_job_records()
 
 
 def _postgis_status() -> dict:

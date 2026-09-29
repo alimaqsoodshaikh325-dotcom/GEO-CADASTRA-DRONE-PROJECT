@@ -17,9 +17,19 @@ def _write_png(path: Path) -> None:
     image.save(path)
 
 
-def _create_fake_artifacts(out_dir: Path) -> None:
+def _create_fake_artifacts(out_dir: Path, *, include_building: bool = False) -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
-    (out_dir / 'final_buildings.geojson').write_text(json.dumps({'type': 'FeatureCollection', 'features': []}), encoding='utf-8')
+    features = []
+    if include_building:
+        features.append({
+            'type': 'Feature',
+            'properties': {'building_id': 'B001', 'confidence': 0.9, 'coordinate_space': 'pixel'},
+            'geometry': {
+                'type': 'Polygon',
+                'coordinates': [[[10, 10], [20, 10], [20, 20], [10, 20], [10, 10]]],
+            },
+        })
+    (out_dir / 'final_buildings.geojson').write_text(json.dumps({'type': 'FeatureCollection', 'features': features}), encoding='utf-8')
     (out_dir / 'predictions.geojson').write_text(json.dumps({'type': 'FeatureCollection', 'features': []}), encoding='utf-8')
     (out_dir / 'building_measurements.csv').write_text('building_id,confidence,area_m2,perimeter_m\n', encoding='utf-8')
     (out_dir / 'building_parcel_association.csv').write_text('building_id,parcel_id\n', encoding='utf-8')
@@ -143,6 +153,128 @@ def test_process_dispatch_does_not_wait_for_pipeline(tmp_path, monkeypatch):
         finish_pipeline.set()
 
     _wait_for_job_status(job['job_id'], 'completed')
+
+
+def test_pipeline_workers_are_serialized(tmp_path, monkeypatch):
+    image_path = tmp_path / 'sample.png'
+    _write_png(image_path)
+    with image_path.open('rb') as handle:
+        uploaded = client.post('/api/upload', files={'file': ('sample.png', handle, 'image/png')})
+    file_id = uploaded.json()['file_id']
+    pipeline_started = threading.Event()
+    finish_pipeline = threading.Event()
+    active_lock = threading.Lock()
+    active_workers = 0
+    max_active_workers = 0
+
+    def slow_pipeline(image, model, parcels=None, parcel_id_field='ID', output_dir=None, conf=0.5):
+        nonlocal active_workers, max_active_workers
+        with active_lock:
+            active_workers += 1
+            max_active_workers = max(max_active_workers, active_workers)
+            pipeline_started.set()
+        try:
+            assert finish_pipeline.wait(timeout=5)
+            out_dir = Path(output_dir)
+            _create_fake_artifacts(out_dir)
+            return {
+                'output_dir': str(out_dir),
+                'georeferenced': False,
+                'valid_detections': 0,
+                'empty_result': True,
+                'ml_benchmark': 'PASS',
+                'gis_processing': 'PASS',
+                'spatial_consensus': 'PASS',
+                'overall_end_to_end': 'PARTIAL',
+                'report_path': str(out_dir / 'final_report.txt'),
+                'files': ['final_report.txt'],
+            }
+        finally:
+            with active_lock:
+                active_workers -= 1
+
+    monkeypatch.setattr('backend.app.services.pipeline_service.run_pipeline', slow_pipeline)
+    try:
+        first = client.post('/api/process', data={'file_id': file_id, 'model': DEFAULT_MODEL})
+        assert first.status_code == 200
+        first_job = first.json()
+        assert pipeline_started.wait(timeout=2)
+
+        second = client.post('/api/process', data={'file_id': file_id, 'model': DEFAULT_MODEL})
+        assert second.status_code == 200
+        second_job = second.json()
+        assert first_job['job_id'] != second_job['job_id']
+        time.sleep(0.05)
+        with active_lock:
+            assert max_active_workers == 1
+    finally:
+        finish_pipeline.set()
+
+    _wait_for_job_status(first_job['job_id'], 'completed')
+    _wait_for_job_status(second_job['job_id'], 'completed')
+
+
+def test_job_recovery_uses_database_when_job_file_is_missing(tmp_path, monkeypatch):
+    from backend.app.api import dashboard, results
+    from backend.app.services import pipeline_service
+
+    jobs_dir = tmp_path / 'jobs'
+    outputs_dir = tmp_path / 'outputs'
+    jobs_dir.mkdir()
+    outputs_dir.mkdir()
+    monkeypatch.setattr(pipeline_service, 'JOBS_DIR', jobs_dir)
+    monkeypatch.setattr(pipeline_service, 'OUTPUTS_DIR', outputs_dir)
+    monkeypatch.setattr(results, 'OUTPUTS_DIR', outputs_dir)
+    monkeypatch.setattr(dashboard, 'JOBS_DIR', jobs_dir)
+
+    image_path = tmp_path / 'sample.png'
+    _write_png(image_path)
+    with image_path.open('rb') as handle:
+        uploaded = client.post('/api/upload', files={'file': ('sample.png', handle, 'image/png')})
+    file_id = uploaded.json()['file_id']
+
+    def fake_pipeline(image, model, parcels=None, parcel_id_field='ID', output_dir=None, conf=0.5):
+        out_dir = Path(output_dir)
+        _create_fake_artifacts(out_dir, include_building=True)
+        return {
+            'output_dir': str(out_dir),
+            'georeferenced': False,
+            'valid_detections': 1,
+            'empty_result': False,
+            'model': 'U-Net++',
+            'ml_benchmark': 'PASS',
+            'gis_processing': 'PASS',
+            'spatial_consensus': 'PASS',
+            'overall_end_to_end': 'PASS',
+            'report_path': str(out_dir / 'final_report.txt'),
+            'files': ['final_report.txt'],
+        }
+
+    monkeypatch.setattr(pipeline_service, 'run_pipeline', fake_pipeline)
+    response = client.post('/api/process', data={'file_id': file_id, 'model': DEFAULT_MODEL})
+    assert response.status_code == 200
+    job_id = response.json()['job_id']
+    _wait_for_job_status(job_id, 'completed')
+
+    pipeline_service._job_path(job_id).unlink()
+    (outputs_dir / job_id / 'final_buildings.geojson').unlink()
+
+    status = client.get(f'/api/status/{job_id}')
+    assert status.status_code == 200
+    assert status.json()['job_id'] == job_id
+    assert status.json()['status'] == 'completed'
+
+    result = client.get(f'/api/results/{job_id}')
+    assert result.status_code == 200
+    assert result.json()['summary']['building_count'] == 1
+
+    history = client.get('/api/history')
+    assert history.status_code == 200
+    assert any(item['job_id'] == job_id for item in history.json()['history'])
+
+    buildings = client.get(f'/api/buildings/{job_id}')
+    assert buildings.status_code == 200
+    assert buildings.json()['buildings'][0]['properties']['coordinate_space'] == 'pixel', buildings.json()
 
 
 def test_job_status(tmp_path, monkeypatch):
