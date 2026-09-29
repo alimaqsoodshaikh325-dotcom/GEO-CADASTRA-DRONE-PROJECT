@@ -67,8 +67,6 @@ def safe_geometry(geometry: Any) -> Any | None:
 
 
 def _metadata_for_image(image_path: str | Path) -> dict[str, Any]:
-    from gis_processing.georeference import GeoreferencingError, read_raster_reference
-
     path = Path(image_path)
     meta = {
         'path': str(path),
@@ -80,14 +78,19 @@ def _metadata_for_image(image_path: str | Path) -> dict[str, Any]:
         'width': None,
         'height': None,
     }
-    try:
-        ref = read_raster_reference(path)
-        meta['is_georeferenced'] = True
-        meta['crs'] = ref.crs.to_string() if ref.crs else None
-        meta['width'] = ref.width
-        meta['height'] = ref.height
-        meta['transform_present'] = ref.transform is not None
-    except GeoreferencingError:
+    if path.suffix.lower() in {'.tif', '.tiff'}:
+        from gis_processing.georeference import GeoreferencingError, read_raster_reference
+
+        try:
+            ref = read_raster_reference(path)
+            meta['is_georeferenced'] = True
+            meta['crs'] = ref.crs.to_string() if ref.crs else None
+            meta['width'] = ref.width
+            meta['height'] = ref.height
+            meta['transform_present'] = ref.transform is not None
+        except GeoreferencingError:
+            meta['is_georeferenced'] = False
+    else:
         meta['is_georeferenced'] = False
         if path.suffix.lower() in {'.png', '.jpg', '.jpeg'}:
             from PIL import Image
@@ -300,18 +303,6 @@ def run_pipeline(image: str | Path, model: str | Path, parcels: str | Path | Non
 
     raw_detections = extract_buildings(image_path, model_path, confidence=float(conf), imgsz=384)
 
-    from pyproj import CRS
-
-    from gis_processing.georeference import (
-        GeoreferencingError,
-        pixel_to_raster_coordinates,
-        read_raster_reference,
-        reproject_geometry,
-        select_measurement_crs,
-    )
-    from gis_processing.measurements import calculate_measurements, write_measurements
-    from gis_processing.parcel_analysis import analyse_parcels, read_parcels, write_csv
-
     metadata = _metadata_for_image(image_path)
     georeferenced = metadata['is_georeferenced'] and metadata.get('crs') is not None
     reference = None
@@ -319,6 +310,14 @@ def run_pipeline(image: str | Path, model: str | Path, parcels: str | Path | Non
     warnings: list[str] = []
 
     if georeferenced:
+        from gis_processing.georeference import (
+            GeoreferencingError,
+            pixel_to_raster_coordinates,
+            read_raster_reference,
+            reproject_geometry,
+            select_measurement_crs,
+        )
+
         try:
             reference = read_raster_reference(image_path)
         except GeoreferencingError as exc:
@@ -342,6 +341,8 @@ def run_pipeline(image: str | Path, model: str | Path, parcels: str | Path | Non
     parcel_stats_rows: list[dict[str, Any]] = []
 
     if georeferenced and reference is not None and valid_detections:
+        from gis_processing.measurements import calculate_measurements, write_measurements
+
         transformed_buildings: list[dict[str, Any]] = []
         for detection in valid_detections:
             geometry_px = safe_geometry(getattr(detection, 'geometry_px', None))
@@ -371,6 +372,8 @@ def run_pipeline(image: str | Path, model: str | Path, parcels: str | Path | Non
         measurement_rows = calculate_measurements(metric_buildings, metric_crs)
         if parcels:
             try:
+                from gis_processing.parcel_analysis import analyse_parcels, read_parcels
+
                 parcel_gdf = read_parcels(parcels, parcel_id_field, metric_crs)
                 parcel_relationship_rows, parcel_stats_rows, _, _ = analyse_parcels(metric_buildings, parcel_gdf, parcel_id_field)
             except Exception as exc:
@@ -382,6 +385,8 @@ def run_pipeline(image: str | Path, model: str | Path, parcels: str | Path | Non
         else:
             _write_csv(out_root / 'building_measurements.csv', ['building_id', 'confidence', 'area_m2', 'perimeter_m', 'centroid_x', 'centroid_y', 'width_m', 'height_m', 'compactness'], [])
         if parcel_relationship_rows:
+            from gis_processing.parcel_analysis import write_csv
+
             write_csv(parcel_relationship_rows, out_root / 'building_parcel_association.csv', ['building_id', 'parcel_id', 'confidence', 'building_area_m2', 'parcel_area_m2', 'intersection_area_m2', 'building_coverage_ratio'])
         else:
             _write_csv(out_root / 'building_parcel_association.csv', ['building_id', 'parcel_id', 'confidence', 'building_area_m2', 'parcel_area_m2', 'intersection_area_m2', 'building_coverage_ratio'], [])

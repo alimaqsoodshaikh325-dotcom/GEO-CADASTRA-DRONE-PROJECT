@@ -259,6 +259,8 @@ def extract_buildings(image_path: str | Path, model_path: str | Path, confidence
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model, config = load_unetpp_model(model_path, device)
     model_img_size = int(config.get('img_size', imgsz))
+    if device.type == 'cpu':
+        model_img_size = min(model_img_size, 224)
 
     with rasterio.open(image_path) as dataset:
         count = dataset.count
