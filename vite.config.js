@@ -11,6 +11,7 @@ export default defineConfig({
     proxy: {
       '/health': { target: backendTarget, changeOrigin: true },
       '/api': { target: backendTarget, changeOrigin: true },
+      '/auth': { target: backendTarget, changeOrigin: true },
     },
   },
 })

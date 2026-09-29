@@ -1,4 +1,5 @@
 import { createContext, useContext, useMemo, useState } from 'react'
+import { api } from '../services/api'
 
 const AuthContext = createContext(null)
 const SESSION_KEY = 'geoai-auth-session'
@@ -220,8 +221,7 @@ export function AuthProvider({ children }) {
     }
 
     try {
-      const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000'
-      const response = await fetch(`${baseUrl}/auth/login`, {
+      const response = await fetch(`${api.baseUrl}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: cleanEmail, password }),
@@ -280,8 +280,7 @@ export function AuthProvider({ children }) {
     }
 
     try {
-      const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000'
-      const response = await fetch(`${baseUrl}/auth/register`, {
+      const response = await fetch(`${api.baseUrl}/auth/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

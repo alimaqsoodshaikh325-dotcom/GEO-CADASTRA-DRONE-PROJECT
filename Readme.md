@@ -51,19 +51,16 @@ The platform is intended to support **AI-assisted urban mapping, building-footpr
 - [Render deployment planning](#render-deployment-planning)
 - [Limitations and operational notes](#limitations-and-operational-notes)
 
-  ## Mask R-CNN production checkpoint
+## Mask R-CNN production checkpoint
 
-The production Mask R-CNN checkpoint is hosted separately because it exceeds GitHub’s standard per-file size limit.
+The public Mask R-CNN checkpoint is provisioned during the Render backend build
+from a pinned Hugging Face revision. The build script verifies the expected
+SHA-256 before writing it to the runtime path:
 
-- **Hugging Face repository:** [GeoCadastra Mask R-CNN](https://huggingface.co/shaikhrahella/geocadastra-maskrcnn)
-- **Checkpoint:** [`best.pth`](https://huggingface.co/shaikhrahella/geocadastra-maskrcnn/resolve/main/best.pth)
-- **Model:** Mask R-CNN
-- **Purpose:** Building instance segmentation
+`building_segmentation/runs/maskrcnn/building_instances_fixed/best.pth`
 
-Download `best.pth` and place it at:
-
-```text
-building_segmentation/runs/maskrcnn/building_instances_fixed/best.pth
+The source revision, expected checksum, and download logic are maintained in
+`scripts/fetch_maskrcnn_checkpoint.py`. No Hugging Face token is required.
 
 ## Capabilities
 
@@ -74,7 +71,7 @@ building_segmentation/runs/maskrcnn/building_instances_fixed/best.pth
 - Job status, history, results, artifact inspection, validation, and download flows.
 - Dataset registry and model-comparison/demo views using project-provided assets.
 - GeoAI Assistant backed by the Google GenAI Python SDK when a server-side Gemini API key is configured.
-- SQLAlchemy database integration for job and spatial metadata, with PostgreSQL/PostGIS intended for production.
+- SQLAlchemy database integration for job and spatial metadata, with SQLite as the free-demo fallback when `DATABASE_URL` is unset.
 
 ## System architecture
 
@@ -91,7 +88,7 @@ flowchart LR
     Pipeline[Existing ML and GIS pipeline]
     Models[Production model checkpoints]
     Files[Uploaded inputs, job records and generated artifacts]
-    DB[(PostgreSQL + PostGIS)]
+    DB[(Configured SQLAlchemy database)]
     Gemini[Google Gemini API]
 
     User --> Browser
@@ -128,7 +125,7 @@ sequenceDiagram
     participant Model as Selected checkpoint
     participant Pipeline as ML/GIS pipeline
     participant Store as Job/artifact storage
-    participant DB as PostgreSQL/PostGIS
+    participant DB as Configured database
 
     User->>UI: Select image, model and optional parcel data
     UI->>API: POST /api/upload
@@ -189,6 +186,10 @@ Parcel operations require an actual parcel dataset and an applicable parcel iden
 ├── tests/                            # Backend and pipeline tests
 ├── package.json                      # Frontend scripts and dependencies
 ├── package-lock.json                 # Locked frontend dependency tree
+├── requirements.txt                  # Pinned backend/GIS/model runtime dependencies
+├── render.yaml                       # Render frontend Static Site configuration
+├── render-backend.yaml               # Render backend Web Service configuration
+├── scripts/fetch_maskrcnn_checkpoint.py
 ├── run_full_pipeline.py              # Project processing orchestration
 └── vite.config.js                    # Vite frontend configuration
 ```
@@ -205,7 +206,7 @@ The backend model catalog uses these production checkpoint locations:
 | `yolo11` | `building_segmentation/runs/segment/building_yolo11/weights/best.pt` | 5.72 MB | Production segmentation checkpoint |
 | `maskrcnn` | `building_segmentation/runs/maskrcnn/building_instances_fixed/best.pth` | 175.37 MB | Production checkpoint; stored separately from ordinary Git source |
 
-The application resolves model paths relative to the project root and rejects missing, empty, unreadable, or out-of-root checkpoint paths. The current application code expects each selected checkpoint to exist at its configured local path. **It does not automatically download the Mask R-CNN checkpoint from Hugging Face.** A deployment process must securely provision the private checkpoint into the expected path before serving model requests.
+The application resolves model paths relative to the project root and rejects missing, empty, unreadable, or out-of-root checkpoint paths. The U-Net++ and YOLO11 checkpoints remain at their existing repository paths. The Render backend build runs `scripts/fetch_maskrcnn_checkpoint.py` to download the public Mask R-CNN checkpoint at a pinned revision, verify its SHA-256, and place it at the expected path before startup.
 
 Additional runtime/demo data currently referenced by backend routes includes:
 
@@ -220,11 +221,8 @@ Training/resume checkpoints such as `last.pt` and `last.pth`, historical model r
 
 - Node.js and npm for the React/Vite frontend.
 - Python for FastAPI, ML, and GIS processing.
-- The Python packages declared by:
-  - `backend/requirements.txt`
-  - `building_segmentation/requirements.txt`
-  - `gis_processing/requirements.txt`
-- PostgreSQL with PostGIS for a production geospatial database.
+- The backend runtime packages pinned in the repository-root `requirements.txt`. Training-only scripts may use the separate manifests under `backend/`, `building_segmentation/`, and `gis_processing/`.
+- No PostgreSQL/PostGIS service is required for the free demo; SQLite is used when `DATABASE_URL` is unset.
 - The production model checkpoints at the exact paths listed above.
 - A Gemini API key only if the GeoAI Assistant is to call Gemini.
 
@@ -260,7 +258,7 @@ At minimum, configure:
 
 | Variable | Purpose |
 |---|---|
-| `DATABASE_URL` | SQLAlchemy database connection; SQLite is the local default/fallback, while production should use PostgreSQL/PostGIS |
+| `DATABASE_URL` | Optional SQLAlchemy database connection; leave unset for the SQLite free-demo fallback |
 | `GEMINI_API_KEY` | Server-side Gemini credential; leave unset if the assistant is not configured |
 | `GEMINI_MODEL` | Gemini model identifier; backend default is `gemini-2.5-flash` |
 
@@ -280,7 +278,7 @@ FastAPI's interactive API documentation is available at `http://127.0.0.1:8000/d
 npm run dev
 ```
 
-Open the local URL printed by Vite. The frontend API client defaults to `http://127.0.0.1:8000` unless `VITE_API_BASE_URL` is configured. Vite variables are public build-time configuration and must never contain secrets.
+Open the local URL printed by Vite. During local development, Vite proxies API requests to the backend on `127.0.0.1:8000`. For a production build, set `VITE_API_BASE_URL` to the actual backend URL. Vite variables are public build-time configuration and must never contain secrets.
 
 ## Configuration and secrets
 
@@ -315,7 +313,7 @@ The interactive OpenAPI schema is served by FastAPI at `/docs` when the API is r
 
 The backend uses SQLAlchemy models in `backend/app/db/`. It attempts to create the model tables during application startup. The current project does not include an Alembic migration directory; database schema changes should therefore be handled deliberately before production use.
 
-Set `DATABASE_URL` to a PostgreSQL connection with PostGIS available for production spatial records. SQLite is the configured default for local development/tests when no database URL is supplied. A production Render deployment should use a production PostgreSQL database and must verify PostGIS is enabled and reachable; local SQLite fallback is not a substitute for production persistence.
+When `DATABASE_URL` is unset, the backend uses its SQLite fallback. This is appropriate for the free/demo deployment, where database contents are ephemeral and may be lost when the Render instance is replaced. No PostgreSQL/PostGIS service is configured or required for this deployment.
 
 Job metadata and generated files also use filesystem storage. A database connection alone does not preserve uploaded images, job JSON records, or output artifacts.
 
@@ -337,48 +335,44 @@ Vite writes production frontend assets to `dist/`. The generated `dist/` directo
 
 ## Render deployment planning
 
-The repository currently has no Render Blueprint or Docker deployment manifest. The application is composed of a frontend build and a Python API/processing service; choose and configure the Render services accordingly.
+The repository provides a Render Static Site configuration in `render.yaml` and
+a separate free Python Web Service configuration in `render-backend.yaml`. The
+backend configuration is separate so the existing frontend Static Site remains
+unchanged.
 
-### Suggested service responsibilities
+**Frontend Static Site**
 
-```mermaid
-flowchart TB
-    Browser[User browser]
-    Static[Render Static Site<br/>React/Vite build]
-    Web[Render Web Service<br/>FastAPI + ML/GIS runtime]
-    Disk[Persistent filesystem storage<br/>uploads, job records, artifacts]
-    DB[(Render PostgreSQL<br/>PostGIS enabled)]
-    HF[Private Hugging Face model repository<br/>Mask R-CNN checkpoint]
-    Secret[Render environment secrets]
-    Gemini[Google Gemini API]
+- Build command: `npm install && npm run build`
+- Publish directory: `dist`
+- Build-time variable: `VITE_API_BASE_URL` set to the actual backend HTTPS URL assigned by Render.
+- The frontend bundle must not contain a hardcoded localhost backend URL.
 
-    Browser --> Static
-    Static -->|VITE_API_BASE_URL| Web
-    Web --> Disk
-    Web --> DB
-    Web -->|GEMINI_API_KEY| Gemini
-    Secret --> Web
-    HF -. secure provisioning required .-> Web
-```
+**Backend Web Service**
 
-### Deployment checklist
+- Root directory: repository root (leave blank).
+- Build command: `pip install -r requirements.txt && python scripts/fetch_maskrcnn_checkpoint.py`
+- Start command: `uvicorn backend.app.main:app --host 0.0.0.0 --port $PORT`
+- Health check path: `/health`
+- Plan: Free; no persistent disk, paid database, or Redis.
+- Set `FRONTEND_ORIGIN` to the actual frontend origin after Render assigns its URL. Comma-separated origins are supported.
+- Leave `DATABASE_URL` unset to use the SQLite demo fallback. Database contents, uploads, job records, and generated outputs are ephemeral.
+- `GEMINI_API_KEY` is optional and belongs only in the backend environment; `GEMINI_MODEL` is optional.
 
-1. **Frontend:** build with the production API base URL supplied as `VITE_API_BASE_URL`. Configure the static host's SPA fallback so client-side routes load through the application entry point.
-2. **Backend:** run the FastAPI ASGI app using `backend.app.main:app`, binding to the host and port provided by Render. Confirm the required Python packages and native geospatial dependencies build in the selected Render runtime.
-3. **Database:** create or attach a PostgreSQL service, enable PostGIS, configure `DATABASE_URL` as a Render secret/environment value, and verify `/health` and `/api/postgis/status`.
-4. **Gemini:** set `GEMINI_API_KEY` as a backend-only Render secret and optionally set `GEMINI_MODEL`. Never define the key as a frontend/Vite variable.
-5. **Checkpoints:** provision all three production checkpoints. The U-Net++ and YOLO11 files are in the repository. Retrieve the Mask R-CNN checkpoint from its private Hugging Face repository using a deployment-time credential or another controlled provisioning process, and place it at `building_segmentation/runs/maskrcnn/building_instances_fixed/best.pth`.
-6. **Runtime filesystem:** the backend creates and writes upload, job, and output directories below its configured backend base directory (currently resolving to `backend/backend/uploads`, `backend/backend/jobs`, and `backend/backend/outputs`). Configure persistent storage for these paths if uploaded inputs, job history, and generated artifacts must survive service restarts or redeploys.
-7. **Demo assets:** keep the selected datasets, GIS inputs, benchmark data, and prediction/evaluation previews at their expected repository-relative paths if those demo and browsing features are required.
-8. **Smoke checks:** verify health, login, dataset/model registry, one supported image-processing run, job status/results, artifact download, PostGIS status, and Gemini status/chat as applicable.
+The backend build obtains only the Mask R-CNN checkpoint from the public,
+revision-pinned Hugging Face source and verifies its SHA-256. The U-Net++ and
+YOLO11 checkpoints and the existing read-only dataset, GIS, and comparison
+assets stay at their current project paths.
 
-Render filesystems are not automatically durable for application-generated files unless persistent storage is configured. Model provisioning, database/PostGIS setup, frontend API URL, CORS/origin policy, and persistent upload/output storage must be validated in the deployed environment; this README does not claim they are already configured.
+Enter the backend and frontend values in the Render Dashboard after the source
+changes have been pushed. Do not substitute a guessed service URL. Validate
+the Linux dependency build, `/health`, CORS, and a model inference smoke test
+in Render; a free instance may have insufficient memory for ML/GIS inference.
 
 ## Limitations and operational notes
 
 - The application uses the actual checkpoint and input data available to it; it does not make absent model files, CRS metadata, parcels, or activity records appear.
 - Inference quality and resource usage depend on the selected model, input size, hardware, and runtime limits. Benchmark results in the project are measurements for their recorded evaluation setup, not a guarantee for every deployment.
-- A private external checkpoint needs a secure provisioning mechanism. The current backend validates a local project-relative path and does not fetch private Hugging Face files itself.
-- Generated uploads, job records, and result artifacts are filesystem-backed. Back them with persistent storage or an external storage design if they must survive deployment replacement.
+- The Mask R-CNN checkpoint is public and fetched at build time; the inference code continues to use its existing local project-relative path.
+- Generated uploads, job records, SQLite data, and result artifacts are filesystem-backed and ephemeral on the free Render service.
 - Keep user-uploaded imagery, parcel data, generated outputs, and credentials protected according to their sensitivity and retention requirements.
 - CORS, authentication/session behavior, deployment origins, resource limits, and database access should be reviewed before exposing a public production deployment.
