@@ -13,15 +13,9 @@ from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
-import geopandas as gpd
 import numpy as np
-from PIL import Image, ImageDraw, ImageFont
-from pyproj import CRS
 from shapely.geometry import LineString, Polygon
 
-from gis_processing.georeference import GeoreferencingError, read_raster_reference, pixel_to_raster_coordinates, reproject_geometry, select_measurement_crs
-from gis_processing.measurements import calculate_measurements, write_measurements
-from gis_processing.parcel_analysis import analyse_parcels, read_parcels, write_csv
 from gis_processing.polygon_extractor import extract_buildings
 
 SUPPORTED_INPUTS = {'.tif', '.tiff', '.png', '.jpg', '.jpeg'}
@@ -73,6 +67,8 @@ def safe_geometry(geometry: Any) -> Any | None:
 
 
 def _metadata_for_image(image_path: str | Path) -> dict[str, Any]:
+    from gis_processing.georeference import GeoreferencingError, read_raster_reference
+
     path = Path(image_path)
     meta = {
         'path': str(path),
@@ -94,6 +90,8 @@ def _metadata_for_image(image_path: str | Path) -> dict[str, Any]:
     except GeoreferencingError:
         meta['is_georeferenced'] = False
         if path.suffix.lower() in {'.png', '.jpg', '.jpeg'}:
+            from PIL import Image
+
             with Image.open(path) as img:
                 meta['width'], meta['height'] = img.size
             meta['transform_present'] = False
@@ -137,6 +135,8 @@ def _write_csv(path: Path, fieldnames: list[str], rows: list[dict[str, Any]]) ->
 
 
 def _write_image_copy(source_path: str | Path, target_path: Path) -> None:
+    from PIL import Image
+
     target_path.parent.mkdir(parents=True, exist_ok=True)
     try:
         with Image.open(source_path) as img:
@@ -147,6 +147,8 @@ def _write_image_copy(source_path: str | Path, target_path: Path) -> None:
 
 
 def _annotate_visual(path: Path, label: str, text_lines: list[str]) -> None:
+    from PIL import Image, ImageDraw, ImageFont
+
     img = Image.new('RGB', (1200, 900), color=(20, 20, 20))
     draw = ImageDraw.Draw(img)
     try:
@@ -162,6 +164,8 @@ def _annotate_visual(path: Path, label: str, text_lines: list[str]) -> None:
 
 
 def _save_visualizations(output_dir: Path, image_path: str | Path, detections: list[Any], final_features: list[dict[str, Any]], parcel_layer: str | Path | None, georeferenced: bool) -> None:
+    from PIL import Image, ImageDraw, ImageFont
+
     vis_dir = output_dir / 'visualizations'
     vis_dir.mkdir(parents=True, exist_ok=True)
     _write_image_copy(image_path, vis_dir / 'input.png')
@@ -211,6 +215,8 @@ def _save_visualizations(output_dir: Path, image_path: str | Path, detections: l
 
     if parcel_layer and georeferenced:
         try:
+            import geopandas as gpd
+
             parcels = gpd.read_file(parcel_layer)
             parcel_canvas = Image.new('RGB', (1200, 900), color=(15, 15, 15))
             draw = ImageDraw.Draw(parcel_canvas)
@@ -246,10 +252,12 @@ def _save_visualizations(output_dir: Path, image_path: str | Path, detections: l
     confidence_canvas.save(vis_dir / 'confidence_overlay.png')
 
 
-def _build_parcel_outputs(buildings: list[dict[str, Any]], parcels: str | Path | None, parcel_id_field: str, metric_crs: CRS | None) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
+def _build_parcel_outputs(buildings: list[dict[str, Any]], parcels: str | Path | None, parcel_id_field: str, metric_crs: Any | None) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
     if parcels is None or metric_crs is None:
         return [], [], []
     try:
+        from gis_processing.parcel_analysis import analyse_parcels, read_parcels
+
         parcel_gdf = read_parcels(parcels, parcel_id_field, metric_crs)
         relationships, stats, assigned, crossing = analyse_parcels(buildings, parcel_gdf, parcel_id_field)
         return relationships, stats, [{
@@ -290,6 +298,20 @@ def run_pipeline(image: str | Path, model: str | Path, parcels: str | Path | Non
     out_root.mkdir(parents=True, exist_ok=True)
     validate_input(image_path, model_path)
 
+    raw_detections = extract_buildings(image_path, model_path, confidence=float(conf), imgsz=384)
+
+    from pyproj import CRS
+
+    from gis_processing.georeference import (
+        GeoreferencingError,
+        pixel_to_raster_coordinates,
+        read_raster_reference,
+        reproject_geometry,
+        select_measurement_crs,
+    )
+    from gis_processing.measurements import calculate_measurements, write_measurements
+    from gis_processing.parcel_analysis import analyse_parcels, read_parcels, write_csv
+
     metadata = _metadata_for_image(image_path)
     georeferenced = metadata['is_georeferenced'] and metadata.get('crs') is not None
     reference = None
@@ -306,7 +328,6 @@ def run_pipeline(image: str | Path, model: str | Path, parcels: str | Path | Non
     if georeferenced and reference is not None:
         metric_crs = select_measurement_crs(Polygon([(0, 0), (1, 0), (1, 1), (0, 0)]), reference.crs)
 
-    raw_detections = extract_buildings(image_path, model_path, confidence=float(conf), imgsz=384)
     valid_detections: list[Any] = []
     for detection in raw_detections:
         geom = safe_geometry(getattr(detection, 'geometry_px', None))
@@ -397,6 +418,8 @@ def run_pipeline(image: str | Path, model: str | Path, parcels: str | Path | Non
         _write_csv(out_root / 'building_measurements.csv', ['building_id', 'confidence', 'area_px', 'perimeter_px', 'width_px', 'height_px', 'coordinate_space'], measurement_rows)
         if parcels:
             try:
+                import geopandas as gpd
+
                 gpd.read_file(parcels)
             except Exception as exc:
                 warnings.append(f'Parcel file not loaded for pixel-space image: {exc}')

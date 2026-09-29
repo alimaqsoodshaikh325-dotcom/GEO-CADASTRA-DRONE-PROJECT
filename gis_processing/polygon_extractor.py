@@ -30,13 +30,25 @@ def load_unetpp_model(checkpoint_path: str | Path, device: torch.device):
     # PyTorch 2.6+ changed torch.load() default to weights_only=True.
     # This trusted local project checkpoint requires weights_only=False
     # because it contains non-tensor Python objects (config dicts, etc.).
-    checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=False)
+    checkpoint_options = {'map_location': device, 'weights_only': False}
+    if device.type == 'cpu':
+        torch.set_num_threads(1)
+        checkpoint_options['mmap'] = True
+    checkpoint = torch.load(checkpoint_path, **checkpoint_options)
     if not isinstance(checkpoint, dict):
         raise TypeError(f'Checkpoint at {checkpoint_path} is not a dictionary payload.')
     config = checkpoint.get('config', {})
     encoder_name = config.get('encoder', 'resnet18')
+
+    def build_model(**kwargs):
+        if device.type == 'cpu':
+            with torch.device('meta'):
+                return smp.UnetPlusPlus(**kwargs)
+        return smp.UnetPlusPlus(**kwargs)
+
+    load_options = {'assign': True} if device.type == 'cpu' else {}
     try:
-        model = smp.UnetPlusPlus(
+        model = build_model(
             encoder_name=encoder_name,
             encoder_weights=None,
             in_channels=3,
@@ -44,9 +56,9 @@ def load_unetpp_model(checkpoint_path: str | Path, device: torch.device):
             encoder_depth=4,
             decoder_channels=(128, 64, 32, 16),
         )
-        model.load_state_dict(checkpoint['model_state_dict'])
+        model.load_state_dict(checkpoint['model_state_dict'], **load_options)
     except Exception:
-        model = smp.UnetPlusPlus(
+        model = build_model(
             encoder_name=encoder_name,
             encoder_weights=None,
             in_channels=3,
@@ -54,7 +66,8 @@ def load_unetpp_model(checkpoint_path: str | Path, device: torch.device):
         )
         if 'model_state_dict' not in checkpoint:
             raise KeyError(f'Checkpoint at {checkpoint_path} does not contain model_state_dict.')
-        model.load_state_dict(checkpoint['model_state_dict'])
+        model.load_state_dict(checkpoint['model_state_dict'], **load_options)
+    del checkpoint
     model.to(device)
     model.eval()
     return model, config
@@ -81,6 +94,8 @@ def _refine_mask(binary_mask: np.ndarray, open_k: int = 3, close_k: int = 3) -> 
 
 
 def _polygon_from_component(component_mask: np.ndarray) -> Polygon | None:
+    from shapely.geometry import Polygon
+
     contours, _ = cv2.findContours(component_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     if not contours:
         return None
