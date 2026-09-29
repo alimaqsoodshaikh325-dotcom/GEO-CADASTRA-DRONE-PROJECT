@@ -306,6 +306,7 @@ export default function ProcessingPage() {
       try {
         const next = await api.getJobStatus(jobId)
         if (!active) return
+        setError('')
         setJob(next)
         setJobId(jobId)
 
@@ -320,7 +321,11 @@ export default function ProcessingPage() {
           timer = window.setTimeout(load, 2000)
         }
       } catch (e) {
-        if (active) setError(e.message)
+        if (!active) return
+        setError(e.message)
+        if (e.status === 0 || e.status >= 500) {
+          timer = window.setTimeout(load, 2000)
+        }
       }
     }
 
