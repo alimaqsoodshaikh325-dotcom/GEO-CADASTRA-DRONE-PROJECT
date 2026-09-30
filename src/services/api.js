@@ -5,6 +5,22 @@ export class ApiError extends Error {
   constructor(message, status) { super(message); this.status = status }
 }
 
+async function fetchWithTransientRetry(url, options = {}) {
+  const method = (options.method || 'GET').toUpperCase()
+  const retryable = ['GET', 'HEAD', 'OPTIONS'].includes(method)
+  let attempt = 0
+
+  while (true) {
+    try {
+      return await fetch(url, options)
+    } catch (error) {
+      if (!retryable || attempt > 0 || error?.name === 'AbortError') throw error
+      attempt += 1
+      await new Promise((resolve) => setTimeout(resolve, 300))
+    }
+  }
+}
+
 function responseError(response, body) {
   const detail = body?.detail || body?.message
   if (response.status === 401) return new ApiError(`Authentication required.${detail ? ` ${detail}` : ''}`, response.status)
@@ -16,7 +32,7 @@ function responseError(response, body) {
 
 async function request(path, options = {}) {
   let response
-  try { response = await fetch(`${BASE_URL}${path}`, options) }
+  try { response = await fetchWithTransientRetry(`${BASE_URL}${path}`, options) }
   catch { throw new ApiError('FastAPI is unreachable.', 0) }
   const body = await response.json().catch(() => null)
   if (!response.ok) throw responseError(response, body)
@@ -25,7 +41,7 @@ async function request(path, options = {}) {
 
 async function requestBlob(path) {
   let response
-  try { response = await fetch(`${BASE_URL}${path}`) }
+  try { response = await fetchWithTransientRetry(`${BASE_URL}${path}`) }
   catch { throw new ApiError('FastAPI is unreachable.', 0) }
   if (!response.ok) throw responseError(response, await response.json().catch(() => null))
   return response.blob()
@@ -93,7 +109,7 @@ export const api = {
   }),
   getArtifactUrl: (jobId, filename) => `${BASE_URL}/api/jobs/${encodeURIComponent(jobId)}/files/${encodeURIComponent(filename).replace(/%2F/g, '/')}`,
   getJobArtifactText: async (jobId, filename) => {
-    const response = await fetch(api.getArtifactUrl(jobId, filename))
+    const response = await fetchWithTransientRetry(api.getArtifactUrl(jobId, filename))
     if (!response.ok) {
       const body = await response.text().catch(() => '')
       let detail = 'Artifact could not be loaded from the backend.'
@@ -109,7 +125,7 @@ export const api = {
   },
   validateJobArtifact: (jobId, filename) => request(`/api/jobs/${encodeURIComponent(jobId)}/artifacts/${encodeURIComponent(filename)}/validate`),
   exportJobPackage: async (jobId) => {
-    const response = await fetch(`${BASE_URL}/api/jobs/${encodeURIComponent(jobId)}/package`)
+    const response = await fetchWithTransientRetry(`${BASE_URL}/api/jobs/${encodeURIComponent(jobId)}/package`)
     if (!response.ok) {
       const body = await response.json().catch(() => null)
       throw new ApiError(body?.detail || 'Package export is unavailable for this job.', response.status)
@@ -117,7 +133,7 @@ export const api = {
     return response.blob()
   },
   downloadArtifact: async (jobId, filename) => {
-    const response = await fetch(`${BASE_URL}/api/jobs/${encodeURIComponent(jobId)}/files/${encodeURIComponent(filename)}`)
+    const response = await fetchWithTransientRetry(`${BASE_URL}/api/jobs/${encodeURIComponent(jobId)}/files/${encodeURIComponent(filename)}`)
     if (!response.ok) {
       const body = await response.json().catch(() => null)
       throw new ApiError(body?.detail || 'Artifact download failed.', response.status)
