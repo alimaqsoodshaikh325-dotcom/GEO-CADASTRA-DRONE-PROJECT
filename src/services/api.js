@@ -13,6 +13,34 @@ function networkError(path, error) {
   )
 }
 
+function createAbortError() {
+  const error = new Error('The operation was aborted.')
+  error.name = 'AbortError'
+  return error
+}
+
+function waitForRetry(delay, signal) {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(signal.reason || createAbortError())
+      return
+    }
+
+    const timeout = setTimeout(() => {
+      signal?.removeEventListener('abort', onAbort)
+      resolve()
+    }, delay)
+    const onAbort = () => {
+      clearTimeout(timeout)
+      signal.removeEventListener('abort', onAbort)
+      reject(signal.reason || createAbortError())
+    }
+
+    signal?.addEventListener('abort', onAbort, { once: true })
+    if (signal?.aborted) onAbort()
+  })
+}
+
 async function fetchWithTransientRetry(url, options = {}) {
   const method = (options.method || 'GET').toUpperCase()
   const retryable = ['GET', 'HEAD', 'OPTIONS'].includes(method)
@@ -47,12 +75,20 @@ async function request(path, options = {}) {
   return body
 }
 
-async function requestBlob(path) {
-  let response
-  try { response = await fetchWithTransientRetry(`${BASE_URL}${path}`) }
-  catch (error) { throw networkError(path, error) }
-  if (!response.ok) throw responseError(response, await response.json().catch(() => null))
-  return response.blob()
+async function requestBlob(path, options = {}, maxRetries = 1) {
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      const response = await fetch(`${BASE_URL}${path}`, options)
+      if (!response.ok) throw responseError(response, await response.json().catch(() => null))
+      return await response.blob()
+    } catch (error) {
+      if (error?.name === 'AbortError' || options.signal?.aborted) throw error
+      if (error instanceof ApiError) throw error
+      if (!(error instanceof TypeError)) throw error
+      if (attempt >= maxRetries) throw networkError(path, error)
+      await waitForRetry(300 * (2 ** attempt), options.signal)
+    }
+  }
 }
 
 export const api = {
@@ -90,7 +126,7 @@ export const api = {
   getBenchmarkMetrics: () => request('/api/demo/benchmark-metrics'),
   getModelCheckpoints: () => request('/api/models/checkpoints'),
   getImageUrl: (split, filename) => `${BASE_URL}/api/demo/images/${split}/${filename}`,
-  getImageFile: (split, filename) => requestBlob(`/api/demo/images/${encodeURIComponent(split)}/${encodeURIComponent(filename)}`),
+  getImageFile: (split, filename, options) => requestBlob(`/api/demo/images/${encodeURIComponent(split)}/${encodeURIComponent(filename)}`, options, 2),
   getMaskUrl: (split, filename) => `${BASE_URL}/api/demo/masks/${split}/${filename}`,
   getPredictionUrl: (model, filename) => `${BASE_URL}/api/demo/predictions/${model}/${filename}`,
   getTestImageUrl: (filename) => `${BASE_URL}/api/demo/images/test/${filename}`,

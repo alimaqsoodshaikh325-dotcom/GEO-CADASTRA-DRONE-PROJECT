@@ -68,6 +68,8 @@ export default function AnalysisPage() {
   const [searchParams] = useSearchParams()
   const { setJobId } = useJob()
   const fileInputRef = useRef(null)
+  const datasetRequestRef = useRef(null)
+  const previewUrlRef = useRef('')
   const [mode, setMode] = useState('standard')
   const [inputTab, setInputTab] = useState('upload')
   const [file, setFile] = useState(null)
@@ -94,6 +96,11 @@ export default function AnalysisPage() {
   const [datasetStatus, setDatasetStatus] = useState('CHECKING')
   const [lastConnectivityCheck, setLastConnectivityCheck] = useState(null)
   const [automatedPipeline, setAutomatedPipeline] = useState(false)
+
+  useEffect(() => () => {
+    datasetRequestRef.current?.controller.abort()
+    if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current)
+  }, [])
 
   const verifyBackendHealth = async () => {
     const health = await api.getHealth()
@@ -277,9 +284,12 @@ export default function AnalysisPage() {
 
   const selectFile = (nextFile) => {
     if (!nextFile) return
+    datasetRequestRef.current?.controller.abort()
+    datasetRequestRef.current = null
     setError('')
-    if (previewUrl) URL.revokeObjectURL(previewUrl)
+    if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current)
     const url = URL.createObjectURL(nextFile)
+    previewUrlRef.current = url
     setFile(nextFile); setPreviewUrl(url)
     const image = new Image()
     image.onload = () => setMetadata({ width: image.naturalWidth, height: image.naturalHeight, readable: true })
@@ -288,19 +298,33 @@ export default function AnalysisPage() {
   }
 
   const removeInput = () => {
-    if (previewUrl) URL.revokeObjectURL(previewUrl)
+    datasetRequestRef.current?.controller.abort()
+    datasetRequestRef.current = null
+    if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current)
+    previewUrlRef.current = ''
     setFile(null); setPreviewUrl(''); setMetadata(null)
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
   const selectDataset = async (filename) => {
+    const requestKey = JSON.stringify([split, filename])
+    if (datasetRequestRef.current?.key === requestKey) return
+
+    datasetRequestRef.current?.controller.abort()
+    const request = { key: requestKey, controller: new AbortController() }
+    datasetRequestRef.current = request
+
     try {
       setError('')
-      const blob = await api.getImageFile(split, filename)
+      const blob = await api.getImageFile(split, filename, { signal: request.controller.signal })
+      if (datasetRequestRef.current !== request) return
       selectFile(new File([blob], filename, { type: blob.type || 'image/jpeg' }))
     } catch (requestError) {
+      if (datasetRequestRef.current !== request || request.controller.signal.aborted || requestError?.name === 'AbortError') return
       setError(requestError.message || 'Dataset image could not be loaded.')
       setRetryAction(() => () => selectDataset(filename))
+    } finally {
+      if (datasetRequestRef.current === request) datasetRequestRef.current = null
     }
   }
 
