@@ -322,39 +322,36 @@ def get_datasets():
             'masks': masks,
         }
 
-    train_cnt = splits_data.get('train', {}).get('image_count', 45)
-    val_cnt = splits_data.get('val', {}).get('image_count', 18)
-    test_cnt = splits_data.get('test', {}).get('image_count', 9)
+    image_counts = {split: data['image_count'] for split, data in splits_data.items()}
+    mask_counts = {split: data['mask_count'] for split, data in splits_data.items()}
 
     return {
-        'total_images': train_cnt + val_cnt + test_cnt,
-        'total_masks': train_cnt + val_cnt + test_cnt,
+        'total_images': sum(image_counts.values()),
+        'total_masks': sum(mask_counts.values()),
         'splits': {
             'train': {
                 'name': 'Training Set',
                 'description': 'Main aerial image tiles and ground truth building segmentation masks.',
-                'image_count': train_cnt,
-                'mask_count': train_cnt,
-                'items': splits_data.get('train', {}).get('images', []),
+                'image_count': image_counts['train'],
+                'mask_count': mask_counts['train'],
+                'items': splits_data['train']['images'],
+                'masks': splits_data['train']['masks'],
             },
             'val': {
                 'name': 'Validation Set',
                 'description': 'Validation split used for tuning hyperparameters and early stopping.',
-                'image_count': val_cnt,
-                'mask_count': val_cnt,
-                'items': splits_data.get('val', {}).get('images', []),
+                'image_count': image_counts['val'],
+                'mask_count': mask_counts['val'],
+                'items': splits_data['val']['images'],
+                'masks': splits_data['val']['masks'],
             },
             'test': {
                 'name': 'Tile 8 Held-Out Test',
                 'description': 'Geographically held-out Tile 8 for benchmark evaluation across models.',
-                'image_count': test_cnt,
-                'mask_count': test_cnt,
-                'items': splits_data.get('test', {}).get('images', [
-                    f'tile8_image_part_00{i}.jpg' for i in range(1, 10)
-                ]),
-                'masks': splits_data.get('test', {}).get('masks', [
-                    f'tile8_image_part_00{i}.png' for i in range(1, 10)
-                ]),
+                'image_count': image_counts['test'],
+                'mask_count': mask_counts['test'],
+                'items': splits_data['test']['images'],
+                'masks': splits_data['test']['masks'],
             }
         }
     }
@@ -437,7 +434,7 @@ def get_dataset_registry():
     split_counts = {split: sum(1 for record in records if record['split'] == split) for split in ('train', 'val', 'test')}
     return {
         'dataset_name': 'Semantic segmentation dataset',
-        'dataset_root': str((PROJECT_ROOT / 'Semantic segmentation dataset').relative_to(PROJECT_ROOT)).replace('\\', '/'),
+        'dataset_root': str(DATASET_ROOT.relative_to(PROJECT_ROOT)).replace('\\', '/'),
         'records': records,
         'total_images': len(records),
         'total_masks': sum(1 for record in records if record['mask_available']),
@@ -447,8 +444,21 @@ def get_dataset_registry():
         'semantic_classes': ['Building', 'Land', 'Road', 'Vegetation', 'Water', 'Unlabeled'],
         'target_class': 'Building',
         'resolution': '2149 x 1479',
-        'validation_status': 'NOT VERIFIED',
+        'validation_status': _dataset_validation_status(records),
     }
+
+
+def _dataset_validation_status(records: list[dict]) -> str:
+    missing_masks = any(not record['mask_available'] for record in records)
+    invalid = any(record['validation'] == 'INVALID' for record in records)
+    warnings = any(record['validation'] == 'WARNING' for record in records)
+    split_integrity = (
+        len(records) == 72
+        and {record['split'] for record in records} == {'train', 'val', 'test'}
+    )
+    if not missing_masks and not invalid and split_integrity:
+        return 'PASS'
+    return 'WARNING' if warnings else 'FAIL'
 
 
 @router.post('/api/datasets/validate')
@@ -467,7 +477,7 @@ def validate_dataset_registry():
         'warnings': warnings,
         'split_integrity': 'PASS' if len(records) == 72 and {record['split'] for record in records} == {'train', 'val', 'test'} else 'FAIL',
     }
-    status = 'PASS' if not missing_masks and not invalid and checks['split_integrity'] == 'PASS' else 'WARNING' if warnings else 'FAIL'
+    status = _dataset_validation_status(records)
     return {'status': status, 'checks': checks, 'validated_at': datetime.now(timezone.utc).isoformat()}
 
 

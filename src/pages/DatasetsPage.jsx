@@ -1413,19 +1413,19 @@ function legacyRegistry(data) {
         split,
         split_label: split === 'val' ? 'VALIDATION' : split.toUpperCase(),
         tile: tileNumber ? `Tile ${tileNumber}` : 'NOT AVAILABLE',
-        dimensions: '2149 × 1479',
-        width: 2149,
-        height: 1479,
+        dimensions: null,
+        width: null,
+        height: null,
         format: filename.split('.').pop().toUpperCase(),
         file_size_bytes: null,
         mask_filename: maskFilename,
         mask_relative_path: `building_segmentation/unet_dataset/masks/${split}/${maskFilename}`,
         mask_available:
-          (value.masks || []).includes(maskFilename) || value.mask_count === value.image_count,
-        building_present: true,
+          (value.masks || []).includes(maskFilename),
+        building_present: null,
         building_pixels: null,
         building_coverage_percent: null,
-        validation: 'PASS',
+        validation: 'NOT VERIFIED',
         prediction_status: {},
         file_modified: null,
         acquisition_date: null
@@ -1435,7 +1435,7 @@ function legacyRegistry(data) {
 
   return {
     dataset_name: 'Semantic segmentation dataset',
-    dataset_root: 'Semantic segmentation dataset',
+    dataset_root: 'building_segmentation/unet_dataset',
     records,
     total_images: data?.total_images ?? records.length,
     total_masks: data?.total_masks ?? records.filter((r) => r.mask_available).length,
@@ -1445,12 +1445,12 @@ function legacyRegistry(data) {
         value.image_count || value.items?.length || 0
       ])
     ),
-    building_positive: records.length,
+    building_positive: 0,
     no_building: 0,
     semantic_classes: ['Building', 'Land', 'Road', 'Vegetation', 'Water', 'Unlabeled'],
     target_class: 'Building',
-    resolution: '2149 × 1479',
-    validation_status: 'PASS'
+    resolution: 'NOT AVAILABLE',
+    validation_status: 'NOT VERIFIED'
   };
 }
 
