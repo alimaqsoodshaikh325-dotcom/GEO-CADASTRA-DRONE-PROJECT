@@ -88,8 +88,10 @@ export default function AnalysisPage() {
   const [saved, setSaved] = useState(false)
   const [detailsOpen, setDetailsOpen] = useState(false)
   const [retryAction, setRetryAction] = useState(() => () => {})
-  const [mlConnectivityStatus, setMlConnectivityStatus] = useState('NOT CHECKED')
-  const [mlConnectivityMessage, setMlConnectivityMessage] = useState('ML connectivity not verified.')
+  const [apiStatus, setApiStatus] = useState('CHECKING')
+  const [catalogStatus, setCatalogStatus] = useState('NOT CHECKED')
+  const [catalogMessage, setCatalogMessage] = useState('Model catalog has not been checked.')
+  const [datasetStatus, setDatasetStatus] = useState('CHECKING')
   const [lastConnectivityCheck, setLastConnectivityCheck] = useState(null)
   const [automatedPipeline, setAutomatedPipeline] = useState(false)
 
@@ -104,53 +106,103 @@ export default function AnalysisPage() {
   const refreshModels = async () => {
     setLoading(true)
     setError('')
-    setMlConnectivityStatus('CHECKING')
-    setMlConnectivityMessage('Checking model catalog...')
+    setApiStatus('CHECKING')
+    setCatalogStatus('CHECKING')
+    setCatalogMessage('Checking backend and model catalog...')
 
-    try {
-      await verifyBackendHealth()
-      const catalogData = await api.getModelCheckpoints()
+    const [healthResult, catalogResult] = await Promise.allSettled([
+      verifyBackendHealth(),
+      api.getModelCheckpoints(),
+    ])
+    const errors = []
+
+    if (healthResult.status === 'fulfilled' && healthResult.value?.status === 'ok') {
+      setApiStatus('AVAILABLE')
+    } else {
+      setApiStatus('UNAVAILABLE')
+      errors.push(healthResult.status === 'rejected'
+        ? healthResult.reason?.message || 'Backend health request failed.'
+        : 'Backend health check returned an unexpected response.')
+    }
+
+    if (catalogResult.status === 'fulfilled') {
+      const catalogData = catalogResult.value
       const normalized = normalizeModelCatalog(catalogData)
       setCheckpoints(normalized.checkpoints)
       setModelCatalog(normalized.models)
 
       const selected = normalized.models.find((model) => model.id === modelId) || normalized.models[0] || null
       if (!normalized.models.length || !normalized.models.some((model) => model.available)) {
-        setMlConnectivityStatus('UNAVAILABLE')
-        setMlConnectivityMessage('? ML backend unavailable.')
-        setLastConnectivityCheck(new Date().toISOString())
-        return
-      }
-
-      if (selected && selected.available) {
-        setMlConnectivityStatus('CONNECTED')
-        setMlConnectivityMessage('? Model catalog and selected checkpoint are available.')
+        setCatalogStatus('UNAVAILABLE')
+        setCatalogMessage('The model catalog returned no available checkpoints.')
       } else {
-        setMlConnectivityStatus('PARTIAL')
-        setMlConnectivityMessage('? Model catalog available, selected checkpoint unavailable.')
+        setCatalogStatus('AVAILABLE')
+        setCatalogMessage(selected?.available
+          ? 'Backend API and selected checkpoint are available; inference has not been run.'
+          : 'Model catalog is available; the selected model checkpoint is unavailable.')
       }
 
       setLastConnectivityCheck(new Date().toISOString())
-    } catch (requestError) {
-      setMlConnectivityStatus('ERROR')
-      setMlConnectivityMessage(requestError.message || 'ML backend unavailable.')
-      setError(requestError.message || 'Could not refresh model catalog.')
-      setRetryAction(() => refreshModels)
-    } finally {
-      setLoading(false)
+    } else {
+      setCheckpoints([])
+      setModelCatalog([])
+      setCatalogStatus('ERROR')
+      setCatalogMessage(catalogResult.reason?.message || 'Model catalog request failed.')
+      errors.push(catalogResult.reason?.message || 'Model catalog request failed.')
     }
+
+    if (errors.length) {
+      setError(errors.join(' '))
+      setRetryAction(() => refreshModels)
+    }
+    setLoading(false)
   }
 
   const loadResources = async () => {
     setLoading(true)
     setError('')
-    try {
-      await verifyBackendHealth()
-      const [datasetData, historyData] = await Promise.all([api.getDatasets(), api.getHistory()])
-      setDatasets(datasetData)
-      setHistory(historyData?.history || [])
+    setApiStatus('CHECKING')
+    setDatasetStatus('CHECKING')
+    setCatalogStatus('CHECKING')
+    setCatalogMessage('Loading model catalog...')
 
-      const catalogData = await api.getModelCheckpoints()
+    const [healthResult, datasetResult, historyResult, catalogResult] = await Promise.allSettled([
+      verifyBackendHealth(),
+      api.getDatasets(),
+      api.getHistory(),
+      api.getModelCheckpoints(),
+    ])
+
+    const errors = []
+    if (healthResult.status === 'fulfilled') {
+      setApiStatus(healthResult.value?.status === 'ok' ? 'AVAILABLE' : 'UNAVAILABLE')
+      if (healthResult.value?.status !== 'ok') errors.push('Backend health check returned an unexpected response.')
+    } else {
+      setApiStatus('UNAVAILABLE')
+      errors.push(healthResult.reason?.message || 'Backend health request failed.')
+    }
+
+    if (datasetResult.status === 'fulfilled' && datasetResult.value?.splits) {
+      const datasetData = datasetResult.value
+      setDatasets(datasetData)
+      setDatasetStatus('AVAILABLE')
+    } else {
+      setDatasets(null)
+      setDatasetStatus('UNAVAILABLE')
+      errors.push(datasetResult.status === 'rejected'
+        ? datasetResult.reason?.message || 'Dataset metadata request failed.'
+        : 'Dataset endpoint returned an unexpected response.')
+    }
+
+    if (historyResult.status === 'fulfilled') {
+      setHistory(historyResult.value?.history || [])
+    } else {
+      setHistory([])
+      errors.push(historyResult.reason?.message || 'History request failed.')
+    }
+
+    if (catalogResult.status === 'fulfilled') {
+      const catalogData = catalogResult.value
       const normalized = normalizeModelCatalog(catalogData)
       setCheckpoints(normalized.checkpoints)
       setModelCatalog(normalized.models)
@@ -159,20 +211,26 @@ export default function AnalysisPage() {
       if (preferred) setModelId((currentModelId) => currentModelId || preferred)
 
       if (!normalized.models.length || !normalized.models.some((model) => model.available)) {
-        setMlConnectivityStatus('UNAVAILABLE')
-        setMlConnectivityMessage('? ML backend unavailable.')
+        setCatalogStatus('UNAVAILABLE')
+        setCatalogMessage('The model catalog returned no available checkpoints.')
       } else {
-        setMlConnectivityStatus('NOT CHECKED')
-        setMlConnectivityMessage('ML connectivity not verified.')
+        setCatalogStatus('AVAILABLE')
+        setCatalogMessage('Checkpoint availability is reported by the catalog; inference has not been run.')
       }
-    } catch (requestError) {
-      setError(requestError.message || 'Analysis metadata could not be loaded.')
-      setRetryAction(() => loadResources)
-      setMlConnectivityStatus('ERROR')
-      setMlConnectivityMessage(requestError.message || 'ML backend unavailable.')
-    } finally {
-      setLoading(false)
+      setLastConnectivityCheck(new Date().toISOString())
+    } else {
+      setCheckpoints([])
+      setModelCatalog([])
+      setCatalogStatus('ERROR')
+      setCatalogMessage(catalogResult.reason?.message || 'Model catalog request failed.')
+      errors.push(catalogResult.reason?.message || 'Model catalog request failed.')
     }
+
+    if (errors.length) {
+      setError(errors.join(' '))
+      setRetryAction(() => loadResources)
+    }
+    setLoading(false)
   }
 
   useEffect(() => {
@@ -188,19 +246,12 @@ export default function AnalysisPage() {
   }, [searchParams])
 
   useEffect(() => {
-    if (!modelCatalog.length || !modelId) return
+    if (catalogStatus !== 'AVAILABLE' || !modelId) return
     const selected = modelCatalog.find((model) => model.id === modelId)
-    if (!selected) return
-
-    if (mlConnectivityStatus === 'CHECKING') return
-    if (selected.available) {
-      setMlConnectivityStatus('CONNECTED')
-      setMlConnectivityMessage('? Model catalog and selected checkpoint are available.')
-    } else {
-      setMlConnectivityStatus('PARTIAL')
-      setMlConnectivityMessage('? Model catalog available, selected checkpoint unavailable.')
-    }
-  }, [modelCatalog, modelId])
+    setCatalogMessage(selected?.available
+      ? `${selected.label} checkpoint is listed as available; inference has not been run.`
+      : 'Model catalog is available; the selected model checkpoint is unavailable.')
+  }, [catalogStatus, modelCatalog, modelId])
 
   const splitData = datasets?.splits?.[split]
   const selectedModel = useMemo(() => modelCatalog.find((model) => model.id === modelId) || null, [modelCatalog, modelId])
@@ -208,17 +259,19 @@ export default function AnalysisPage() {
 
   const inputReady = Boolean(file && metadata?.readable)
   const modelReady = Boolean(modelId && selectedModel && selectedModel.available)
-  const checkpointReady = Boolean(selectedCheckpoint && selectedCheckpoint.path)
-  const connectionReady = mlConnectivityStatus === 'CONNECTED'
-  const startDisabledReason = !file ? 'Select an input to continue.' : !modelId ? 'Select a model to continue.' : !selectedCheckpoint ? 'Selected model checkpoint unavailable.' : !inputReady ? 'Selected input is not valid.' : !connectionReady ? 'ML connectivity is not verified.' : ''
-  const canStart = Boolean(file && metadata?.readable && modelId && selectedCheckpoint && connectionReady && !submitting)
+  const checkpointReady = Boolean(selectedModel?.available && selectedCheckpoint?.path)
+  const connectionReady = apiStatus === 'AVAILABLE' && catalogStatus === 'AVAILABLE' && modelReady && checkpointReady
+  const startDisabledReason = !file ? 'Select an input to continue.' : !modelId ? 'Select a model to continue.' : !selectedCheckpoint ? 'Selected model checkpoint unavailable.' : !inputReady ? 'Selected input is not valid.' : !connectionReady ? 'Backend API or selected checkpoint is unavailable.' : ''
+  const canStart = Boolean(inputReady && connectionReady && !submitting)
+  const dispatchReady = Boolean(canStart)
 
   const checks = [
     ['INPUT', inputReady ? '?' : 'FAIL'],
     ['MODEL', modelReady ? '?' : modelId ? 'FAIL' : 'WAITING'],
     ['CHECKPOINT', checkpointReady ? '?' : 'FAIL'],
-    ['ML CONNECTIVITY', connectionReady ? '?' : 'FAIL'],
-    ['PIPELINE', automatedPipeline ? '?' : 'FAIL'],
+    ['BACKEND API', apiStatus === 'AVAILABLE' ? '?' : apiStatus === 'UNAVAILABLE' ? 'FAIL' : 'WAITING'],
+    ['INFERENCE', 'NOT RUN'],
+    ['PIPELINE DISPATCH', dispatchReady ? '?' : 'WAITING'],
     ['STORAGE', 'NOT EXPOSED BY SERVER'],
   ]
 
@@ -251,7 +304,7 @@ export default function AnalysisPage() {
     }
   }
 
-  const reset = () => { removeInput(); setModelId(''); setConfidence(0.5); setMode('standard'); setError(''); setAutomatedPipeline(false); setMlConnectivityStatus('NOT CHECKED'); setMlConnectivityMessage('ML connectivity not verified.'); }
+  const reset = () => { removeInput(); setModelId(''); setConfidence(0.5); setMode('standard'); setError(''); setAutomatedPipeline(false); }
   const savePreferences = () => {
     try { localStorage.setItem('geocadastra_analysis_preferences', JSON.stringify({ modelId, confidence, mode, automatedPipeline })); setSaved(true); window.setTimeout(() => setSaved(false), 2200) } catch { setError('Local UI preferences could not be saved.') }
   }
@@ -294,7 +347,7 @@ export default function AnalysisPage() {
     <main className="an-main-grid"><div className="an-col-left">
       <section className="an-card"><div className="an-card-head"><div className="an-card-title-group"><span className="an-step-badge">1</span><div><h2 className="an-card-title">INPUT SOURCE</h2><p className="an-card-desc">Upload a raster or select an item returned by the project dataset API.</p></div></div>{file && <button className="an-text-btn-danger" onClick={removeInput}><Trash2 size={14} /> REMOVE INPUT</button>}</div><div className="an-input-tabs">{[['upload', Upload, 'UPLOAD FILE'], ['dataset', FolderOpen, 'SELECT DATASET'], ['recent', Clock, `RECENT INPUTS (${history.length})`]].map(([key, Icon, label]) => <button key={key} className={`an-input-tab ${inputTab === key ? 'active' : ''}`} onClick={() => setInputTab(key)}><Icon size={14} /> {label}</button>)}</div>
         {!file && inputTab === 'upload' && <div className="an-dropzone" role="button" tabIndex="0" onClick={() => fileInputRef.current?.click()} onKeyDown={(event) => event.key === 'Enter' && fileInputRef.current?.click()} onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); selectFile(event.dataTransfer.files?.[0]) }}><input ref={fileInputRef} hidden type="file" accept=".jpg,.jpeg,.png,.tif,.tiff" onChange={(event) => selectFile(event.target.files?.[0])} /><UploadCloud size={30} /><strong>SELECT FILE OR DROP RASTER HERE</strong><span>Accepted by the upload service: file content is sent to the existing backend.</span></div>}
-        {!file && inputTab === 'dataset' && <div className="an-dataset-browser">{loading ? <div className="an-empty-state"><LoaderCircle className="an-spin" size={18} /> Loading dataset metadata...</div> : !splitData ? <div className="an-empty-state">Dataset metadata is unavailable.</div> : <><div className="an-dataset-split-pills">{Object.keys(datasets.splits || {}).map((key) => <button key={key} className={`an-split-pill ${split === key ? 'active' : ''}`} onClick={() => setSplit(key)}>{key.toUpperCase()} ({datasets.splits[key].image_count ?? 0})</button>)}</div><div className="an-dataset-thumb-grid">{(splitData.items || []).map((filename) => <button className="an-dataset-thumb-card" key={filename} onClick={() => selectDataset(filename)}><img src={api.getImageUrl(split, filename)} alt={filename} loading="lazy" /><span>{filename}</span></button>)}</div></>}</div>}
+        {!file && inputTab === 'dataset' && <div className="an-dataset-browser">{datasetStatus === 'CHECKING' ? <div className="an-empty-state"><LoaderCircle className="an-spin" size={18} /> Loading dataset metadata...</div> : datasetStatus !== 'AVAILABLE' || !splitData ? <div className="an-empty-state">Dataset metadata is unavailable. Check the workflow error for the dataset API response.</div> : <><div className="an-dataset-split-pills">{Object.keys(datasets.splits || {}).map((key) => <button key={key} className={`an-split-pill ${split === key ? 'active' : ''}`} onClick={() => setSplit(key)}>{key.toUpperCase()} ({datasets.splits[key].image_count ?? 0})</button>)}</div><div className="an-dataset-thumb-grid">{(splitData.items || []).map((filename) => <button className="an-dataset-thumb-card" key={filename} onClick={() => selectDataset(filename)}><img src={api.getImageUrl(split, filename)} alt={filename} loading="lazy" /><span>{filename}</span></button>)}</div></>}</div>}
         {!file && inputTab === 'recent' && <div className="an-recent-list">{history.length ? history.slice(0, 6).map((item) => <div className="an-recent-item" key={item.job_id}><div><strong>{item.input_filename || 'Input filename not exposed'}</strong><small>{item.status} ? {item.job_id}</small></div><button className="an-btn-secondary small" onClick={() => navigate(`/processing/${item.job_id}`)}>VIEW JOB</button></div>) : <div className="an-empty-state">No recent jobs returned by the server.</div>}</div>}
         {file && <div className="an-selected-preview-panel"><div className="an-preview-media"><img src={previewUrl} alt={`Preview of ${file.name}`} /><span className="an-preview-badge">PIXEL-SPACE STATUS NOT EXPOSED</span></div><div className="an-preview-details"><div className="an-preview-meta-row"><span>Filename</span><strong>{file.name}</strong></div><div className="an-preview-meta-row"><span>File size</span><strong>{formatBytes(file.size)}</strong></div><div className="an-preview-meta-row"><span>Dimensions</span><strong>{metadata?.width ? `${metadata.width} x ${metadata.height} px` : 'Not exposed'}</strong></div><div className="an-preview-meta-row"><span>Format</span><strong>{file.type || 'Not exposed'}</strong></div><div className="an-preview-meta-row"><span>Bands / CRS / bounds</span><strong>NOT EXPOSED BY SERVER</strong></div><div className="an-preview-actions"><button className="an-btn-secondary small" onClick={() => setDetailsOpen(!detailsOpen)}><Info size={13} /> {detailsOpen ? 'HIDE DETAILS' : 'TECHNICAL DETAILS'}</button><button className="an-btn-secondary small" onClick={() => fileInputRef.current?.click()}><RefreshCw size={13} /> REPLACE</button></div>{detailsOpen && <p className="an-notice">Browser-readable metadata is shown above. GeoTIFF CRS, bands, resolution, and bounds are not exposed by the current API.</p>}</div></div>}
       </section>
@@ -303,19 +356,19 @@ export default function AnalysisPage() {
         <div className="an-card-head"><div className="an-card-title-group"><span className="an-step-badge">2</span><div><h2 className="an-card-title">MODEL</h2><p className="an-card-desc">Choose a checkpoint returned by the backend.</p></div></div></div>
 
         <div className="an-ml-connectivity">
-          <div className="an-connectivity-row"><span>ML ENGINE</span><Status state={mlConnectivityStatus === 'CONNECTED' ? 'pass' : mlConnectivityStatus === 'UNAVAILABLE' || mlConnectivityStatus === 'ERROR' ? 'fail' : 'warning'}>{mlConnectivityStatus}</Status></div>
-          <div className="an-connectivity-row"><span>MODEL CATALOG</span><Status state={modelCatalog.some((model) => model.available) ? 'pass' : 'fail'}>{modelCatalog.some((model) => model.available) ? 'AVAILABLE' : 'UNAVAILABLE'}</Status></div>
+          <div className="an-connectivity-row"><span>BACKEND API</span><Status state={apiStatus === 'AVAILABLE' ? 'pass' : apiStatus === 'UNAVAILABLE' ? 'fail' : 'warning'}>{apiStatus}</Status></div>
+          <div className="an-connectivity-row"><span>MODEL CATALOG</span><Status state={catalogStatus === 'AVAILABLE' ? 'pass' : catalogStatus === 'ERROR' || catalogStatus === 'UNAVAILABLE' ? 'fail' : 'warning'}>{catalogStatus}</Status></div>
           <div className="an-connectivity-row"><span>SELECTED MODEL</span><strong>{selectedModel ? selectedModel.label : 'NONE SELECTED'}</strong></div>
           <div className="an-connectivity-row"><span>CHECKPOINT</span><Status state={selectedCheckpoint ? 'pass' : 'fail'}>{selectedCheckpoint ? 'AVAILABLE' : 'UNAVAILABLE'}</Status></div>
           <div className="an-connectivity-row"><span>CHECKPOINT PATH</span><strong>{selectedCheckpoint?.path || 'No checkpoint path exposed'}</strong></div>
-          <div className="an-connectivity-row"><span>INFERENCE STATUS</span><Status state={connectionReady ? 'pass' : mlConnectivityStatus === 'NOT CHECKED' ? 'warning' : 'fail'}>{connectionReady ? 'READY' : mlConnectivityStatus === 'NOT CHECKED' ? 'NOT VERIFIED' : 'UNAVAILABLE'}</Status></div>
+          <div className="an-connectivity-row"><span>INFERENCE STATUS</span><Status state="warning">NOT RUN</Status></div>
           <div className="an-connectivity-row"><span>LAST CHECK</span><strong>{lastConnectivityCheck ? new Date(lastConnectivityCheck).toLocaleString() : 'NOT CHECKED'}</strong></div>
-          <div className="an-connectivity-message">{mlConnectivityMessage}</div>
+          <div className="an-connectivity-message">{catalogMessage}</div>
         </div>
 
         <div className="an-model-actions">
           <button className="an-btn-secondary small" onClick={refreshModels} disabled={loading || submitting}><RefreshCw size={13} /> REFRESH MODELS</button>
-          <button className="an-btn-secondary small" onClick={refreshModels} disabled={loading || submitting}><ShieldCheck size={13} /> CHECK ML CONNECTIVITY</button>
+          <button className="an-btn-secondary small" onClick={refreshModels} disabled={loading || submitting}><ShieldCheck size={13} /> CHECK API + CATALOG</button>
         </div>
 
         {loading ? <div className="an-empty-state"><LoaderCircle className="an-spin" size={18} /> Loading models...</div> : modelCatalog.length ? <div className="an-model-grid">{modelCatalog.map((entry) => {
@@ -357,9 +410,9 @@ export default function AnalysisPage() {
       </section>
 
       {mode === 'advanced' && <section className="an-card"><div className="an-card-head"><div className="an-card-title-group"><span className="an-step-badge">3</span><div><h2 className="an-card-title">SPATIAL CONFIGURATION</h2><p className="an-card-desc">Only server-supported controls are editable in this workstation.</p></div></div></div><div className="an-advanced-grid"><div><strong>INPUT CRS</strong><span>NOT EXPOSED BY SERVER</span></div><div><strong>OUTPUT CRS</strong><span>NOT EXPOSED BY SERVER</span></div><div><strong>AOI</strong><span>FULL IMAGE ONLY ? SERVER DEFAULT</span></div><div><strong>SPATIAL CONSENSUS</strong><span>MANAGED BY PIPELINE</span></div><div><strong>PARCEL ASSOCIATION</strong><span>NOT EXPOSED BY SERVER</span></div><div><strong>PROCESSING OPTIONS</strong><span>SINGLE JOB ? SERVER DEFAULT</span></div></div></section>}
-    </div><aside className="an-col-right"><section className="an-card"><h2 className="an-panel-title"><ShieldCheck size={16} /> PREFLIGHT</h2><div className="an-preflight-matrix">{checks.map(([label, value]) => <div className="an-preflight-item" key={label}><span>{label}</span>{value === '?' ? <Status state="pass">READY</Status> : value === 'FAIL' ? <Status state="fail">FAIL</Status> : value === 'WAITING' ? <Status state="warning">WAITING</Status> : <Status state="warning">{value}</Status>}</div>)}</div><p className="an-notice">Validation is lightweight and does not run inference. Server-only checks remain explicitly unavailable until an API exposes them.</p></section><section className="an-card"><h2 className="an-panel-title"><FileImage size={16} /> OUTPUT CONFIGURATION</h2><div className="an-managed-list"><div><strong>OUTPUTS</strong><span>MANAGED BY PIPELINE</span></div><div><strong>POSTGIS PERSISTENCE</strong><span>NOT EXPOSED BY SERVER</span></div><div><strong>EXPORT FORMATS</strong><span>NOT EXPOSED BY SERVER</span></div></div></section><section className="an-card highlight-card"><h2 className="an-panel-title"><Play size={16} /> ANALYSIS SUMMARY</h2><div className="an-summary-table"><div className="an-summary-row"><span>INPUT</span><strong>{file?.name || 'SELECT AN INPUT TO BEGIN'}</strong></div><div className="an-summary-row"><span>PROJECT</span><strong>GEOCADASTRA</strong></div><div className="an-summary-row"><span>MODEL</span><strong>{selectedModel ? selectedModel.label : '?'}</strong></div><div className="an-summary-row"><span>CHECKPOINT</span><strong>{selectedCheckpoint?.name || selectedCheckpoint?.path || '?'}</strong></div><div className="an-summary-row"><span>PIPELINE</span><strong>{automatedPipeline ? 'AUTOMATED' : 'STANDARD'}</strong></div><div className="an-summary-row"><span>CHECKPOINT SIZE</span><strong>{selectedCheckpoint?.size_mb ? `${selectedCheckpoint.size_mb} MB` : 'NOT EXPOSED'}</strong></div></div><button className="an-btn-launch" disabled={!canStart} onClick={() => setPreflightOpen(true)}>{submitting ? <><LoaderCircle className="an-spin" size={18} /> {submitStep}</> : <><Play size={18} /> START ANALYSIS</>}</button>{!file && <p className="an-launch-hint">Select an input to continue.</p>}{file && !selectedCheckpoint && <p className="an-launch-hint">Selected model checkpoint unavailable.</p>}{file && selectedCheckpoint && mlConnectivityStatus !== 'CONNECTED' && <p className="an-launch-hint">ML connectivity is not verified.</p>}</section>
+    </div><aside className="an-col-right"><section className="an-card"><h2 className="an-panel-title"><ShieldCheck size={16} /> PREFLIGHT</h2><div className="an-preflight-matrix">{checks.map(([label, value]) => <div className="an-preflight-item" key={label}><span>{label}</span>{value === '?' ? <Status state="pass">READY</Status> : value === 'FAIL' ? <Status state="fail">FAIL</Status> : value === 'WAITING' ? <Status state="warning">WAITING</Status> : <Status state="warning">{value}</Status>}</div>)}</div><p className="an-notice">Validation confirms API responses and checkpoint catalog availability only; inference status remains NOT RUN until a real job executes.</p></section><section className="an-card"><h2 className="an-panel-title"><FileImage size={16} /> OUTPUT CONFIGURATION</h2><div className="an-managed-list"><div><strong>OUTPUTS</strong><span>MANAGED BY PIPELINE</span></div><div><strong>POSTGIS PERSISTENCE</strong><span>NOT EXPOSED BY SERVER</span></div><div><strong>EXPORT FORMATS</strong><span>NOT EXPOSED BY SERVER</span></div></div></section><section className="an-card highlight-card"><h2 className="an-panel-title"><Play size={16} /> ANALYSIS SUMMARY</h2><div className="an-summary-table"><div className="an-summary-row"><span>INPUT</span><strong>{file?.name || 'SELECT AN INPUT TO BEGIN'}</strong></div><div className="an-summary-row"><span>PROJECT</span><strong>GEOCADASTRA</strong></div><div className="an-summary-row"><span>MODEL</span><strong>{selectedModel ? selectedModel.label : '?'}</strong></div><div className="an-summary-row"><span>CHECKPOINT</span><strong>{selectedCheckpoint?.name || selectedCheckpoint?.path || '?'}</strong></div><div className="an-summary-row"><span>PIPELINE</span><strong>{automatedPipeline ? 'AUTOMATED' : 'STANDARD'}</strong></div><div className="an-summary-row"><span>CHECKPOINT SIZE</span><strong>{selectedCheckpoint?.size_mb ? `${selectedCheckpoint.size_mb} MB` : 'NOT EXPOSED'}</strong></div></div><button className="an-btn-launch" disabled={!canStart} onClick={() => setPreflightOpen(true)}>{submitting ? <><LoaderCircle className="an-spin" size={18} /> {submitStep}</> : <><Play size={18} /> START ANALYSIS</>}</button>{!file && <p className="an-launch-hint">Select an input to continue.</p>}{file && !selectedCheckpoint && <p className="an-launch-hint">Selected model checkpoint unavailable.</p>}{file && selectedCheckpoint && !connectionReady && <p className="an-launch-hint">Backend API, catalog, or checkpoint is not available.</p>}</section>
     </aside></main>
 
-    {preflightOpen && <div className="an-modal-backdrop" role="presentation" onClick={() => setPreflightOpen(false)}><div className="an-modal-card" role="dialog" aria-modal="true" aria-labelledby="preflight-title" onClick={(event) => event.stopPropagation()}><div className="an-modal-header"><h2 id="preflight-title"><ShieldCheck size={19} /> FINAL PREFLIGHT</h2><button className="an-icon-btn" aria-label="Close preflight" onClick={() => setPreflightOpen(false)}><X size={16} /></button></div><div className="an-modal-summary-box"><div className="an-modal-summary-item"><small>INPUT</small><strong>{file?.name || 'NO INPUT'}</strong></div><div className="an-modal-summary-item"><small>MODEL</small><strong>{selectedModel ? selectedModel.label : 'NONE'}</strong></div><div className="an-modal-summary-item"><small>CHECKPOINT</small><strong>{selectedCheckpoint?.name || selectedCheckpoint?.path || 'UNAVAILABLE'}</strong></div><div className="an-modal-summary-item"><small>PIPELINE</small><strong>{automatedPipeline ? 'AUTOMATED' : 'STANDARD'}</strong></div></div><div className="an-modal-checklist">{[['INPUT', inputReady], ['MODEL', Boolean(modelId && selectedModel)], ['CHECKPOINT', checkpointReady], ['ML CONNECTIVITY', connectionReady], ['PIPELINE', true], ['STORAGE', true]].map(([label, pass]) => <div key={label} className="an-modal-check-row"><Check size={16} color={pass ? '#168866' : '#d55'} /><span>{label}</span><Status state={pass ? 'pass' : 'fail'}>{pass ? 'READY' : 'BLOCKED'}</Status></div>)}</div><p className="an-notice">ML and pipeline checks are validated through the existing backend contract and do not trigger inference.</p><div className="an-modal-footer"><button className="an-btn-secondary" onClick={() => setPreflightOpen(false)}>BACK</button><button className="an-btn-primary" disabled={!canStart} onClick={startAnalysis}><Upload size={15} /> CONFIRM &amp; START</button></div></div></div>}
+    {preflightOpen && <div className="an-modal-backdrop" role="presentation" onClick={() => setPreflightOpen(false)}><div className="an-modal-card" role="dialog" aria-modal="true" aria-labelledby="preflight-title" onClick={(event) => event.stopPropagation()}><div className="an-modal-header"><h2 id="preflight-title"><ShieldCheck size={19} /> FINAL PREFLIGHT</h2><button className="an-icon-btn" aria-label="Close preflight" onClick={() => setPreflightOpen(false)}><X size={16} /></button></div><div className="an-modal-summary-box"><div className="an-modal-summary-item"><small>INPUT</small><strong>{file?.name || 'NO INPUT'}</strong></div><div className="an-modal-summary-item"><small>MODEL</small><strong>{selectedModel ? selectedModel.label : 'NONE'}</strong></div><div className="an-modal-summary-item"><small>CHECKPOINT</small><strong>{selectedCheckpoint?.name || selectedCheckpoint?.path || 'UNAVAILABLE'}</strong></div><div className="an-modal-summary-item"><small>PIPELINE</small><strong>{automatedPipeline ? 'AUTOMATED' : 'STANDARD'}</strong></div></div><div className="an-modal-checklist">{[['INPUT', inputReady], ['MODEL', modelReady], ['CHECKPOINT', checkpointReady], ['BACKEND API', apiStatus === 'AVAILABLE'], ['PIPELINE DISPATCH', dispatchReady], ['INFERENCE', false]].map(([label, pass]) => <div key={label} className="an-modal-check-row"><Check size={16} color={label === 'INFERENCE' ? '#a67c00' : pass ? '#168866' : '#d55'} /><span>{label}</span><Status state={label === 'INFERENCE' ? 'warning' : pass ? 'pass' : 'fail'}>{label === 'INFERENCE' ? 'NOT RUN' : pass ? 'READY' : 'BLOCKED'}</Status></div>)}</div><p className="an-notice">Inference is not run during preflight. Starting analysis sends the selected file and checkpoint to the existing backend pipeline.</p><div className="an-modal-footer"><button className="an-btn-secondary" onClick={() => setPreflightOpen(false)}>BACK</button><button className="an-btn-primary" disabled={!canStart} onClick={startAnalysis}><Upload size={15} /> CONFIRM &amp; START</button></div></div></div>}
   </div>
 }

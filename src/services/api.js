@@ -5,6 +5,14 @@ export class ApiError extends Error {
   constructor(message, status) { super(message); this.status = status }
 }
 
+function networkError(path, error) {
+  const reason = error instanceof Error && error.message ? ` ${error.message}` : ''
+  return new ApiError(
+    `Backend request to ${path} failed before an HTTP response was received (network or CORS failure).${reason}`,
+    0,
+  )
+}
+
 async function fetchWithTransientRetry(url, options = {}) {
   const method = (options.method || 'GET').toUpperCase()
   const retryable = ['GET', 'HEAD', 'OPTIONS'].includes(method)
@@ -33,7 +41,7 @@ function responseError(response, body) {
 async function request(path, options = {}) {
   let response
   try { response = await fetchWithTransientRetry(`${BASE_URL}${path}`, options) }
-  catch { throw new ApiError('FastAPI is unreachable.', 0) }
+  catch (error) { throw networkError(path, error) }
   const body = await response.json().catch(() => null)
   if (!response.ok) throw responseError(response, body)
   return body
@@ -42,7 +50,7 @@ async function request(path, options = {}) {
 async function requestBlob(path) {
   let response
   try { response = await fetchWithTransientRetry(`${BASE_URL}${path}`) }
-  catch { throw new ApiError('FastAPI is unreachable.', 0) }
+  catch (error) { throw networkError(path, error) }
   if (!response.ok) throw responseError(response, await response.json().catch(() => null))
   return response.blob()
 }
@@ -133,7 +141,7 @@ export const api = {
     return response.blob()
   },
   downloadArtifact: async (jobId, filename) => {
-    const response = await fetchWithTransientRetry(`${BASE_URL}/api/jobs/${encodeURIComponent(jobId)}/files/${encodeURIComponent(filename)}`)
+    const response = await fetchWithTransientRetry(api.getArtifactUrl(jobId, filename))
     if (!response.ok) {
       const body = await response.json().catch(() => null)
       throw new ApiError(body?.detail || 'Artifact download failed.', response.status)
